@@ -1,0 +1,9 @@
+# Reviewed synthetic-test exceptions for host/check-secrets.sh.
+# These files carry deliberately credential-shaped FIXTURE values; their own
+# docstrings say so. The guard would otherwise block every commit or
+# publication scan touching them. Entries are path <TAB> rule; rules not
+# listed still guard the file. Nothing else belongs in this file.
+host/test_check_secrets.py	credential assignment
+host/test_check_secrets.py	private IPv4
+host/test_check_secrets.py	private key block
+host/test_avatar_look.py	credential assignment

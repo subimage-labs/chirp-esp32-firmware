@@ -1,0 +1,21 @@
+; Bold: heavy three-pixel lettering lit from the top left; a louder wordmark, no mascot.
+; 47 x 17 art pixels (frame 49 x 19 with the outline margin).
+; Legend: h/b/d body light/mid/dark, f belly, e/a/r orange light/mid/dark,
+; w white, p pupil, c cheek, o outline line, . background. Same rules as logo.h.
+..........hhh.......hhh.....................eee
+..........hbd.......hbd.....................ear
+..........hbd.......ddd.....................ear
+..........hbd...............................ear
+..........hbd...............................ear
+.hhhhhh...hbbhhhh...hhh..hhhhhh....hhhhhh...ear
+hbbddbbh..hbbddbbh..hbd..hbbddbh..hbbddbbh..ear
+hbd..ddd..hbd..hbd..hbd..hbd..dd..hbd..hbd..ear
+hbd.......hbd..hbd..hbd..hbd......hbd..hbd..rrr
+hbd.......hbd..hbd..hbd..hbd......hbd..hbd.....
+hbd.......hbd..hbd..hbd..hbd......hbd..hbd.....
+hbd..hhh..hbd..hbd..hbd..hbd......hbd..hbd..eee
+dbbhhbbd..hbd..hbd..hbd..hbd......dbbhhbbd..ear
+.dddddd...ddd..ddd..ddd..ddd.......hbdddd...rrr
+..................................hbd..........
+..................................hbd..........
+..................................ddd..........

@@ -1,0 +1,19 @@
+# PlatformIO build output
+firmware/.pio/
+
+# Local TTS runtime (Paradee venv + model weights, fetched on first run)
+host/.venv-tts/
+host/models/
+
+# Credentials — template is firmware/device.env.example
+firmware/device.env
+
+__pycache__/
+*.pyc
+
+# Private planning notes (LAN topology, device inventory) — never committed
+tmp/
+
+# OTA update-signing public key (identifies the owner's builds; made by
+# host/publish-firmware.py --init-key)
+firmware/ota_pub.pem

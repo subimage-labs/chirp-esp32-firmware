@@ -1,0 +1,36 @@
+# Pinned upstream for firmware/tools/make_font.py. Every font and license file
+# is fetched from its official source and checked against the SHA-256 here;
+# the generator refuses anything else.
+#
+#   raw <id> <base-url>        files are <base-url><path> (a repository at one commit)
+#   zip|tar <id> <url> <sha256> files are members of this release archive
+#   file <id> <path> <sha256>  one file of that source
+#
+# Atkinson Hyperlegible, Braille Institute of America (SIL OFL 1.1)
+#   https://github.com/googlefonts/atkinson-hyperlegible
+raw atkinson https://raw.githubusercontent.com/googlefonts/atkinson-hyperlegible/1cb311624b2ddf88e9e37873999d165a8cd28b46/
+file atkinson fonts/ttf/AtkinsonHyperlegible-Regular.ttf 7fb917c89019896d0b52ee84b7cbb3304c18cb90b19a62f5e32712bd23e97669
+file atkinson fonts/ttf/AtkinsonHyperlegible-Bold.ttf 5a3b0c8cc8ca545155150b4512a1fa248298df121c50d6557e651e61fbdab92f
+file atkinson OFL.txt f32d22b3908fcad2c86a74000614ec22e6a7f66ea7e867e616026a27aebdc143
+# Inter 4.1, The Inter Project Authors (SIL OFL 1.1)
+#   https://github.com/rsms/inter
+zip inter https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip 9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e
+file inter extras/ttf/Inter-Regular.ttf 40d692fce188e4471e2b3cba937be967878f631ad3ebbbdcd587687c7ebe0c82
+file inter extras/ttf/Inter-Bold.ttf 288316099b1e0a47a4716d159098005eef7c0066921f34e3200393dbdb01947f
+file inter LICENSE.txt 262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a
+# Paper Mono 1.0, Paper Design / Lost Coast Labs, based on Geist Mono (SIL OFL 1.1)
+#   https://paper.design/mono, https://github.com/paper-design/paper-mono
+raw papermono https://raw.githubusercontent.com/paper-design/paper-mono/e6eaeceaef02e77e3db997711e07a16378de2bd7/
+file papermono fonts/ttf/PaperMono-Regular.ttf 130e1a09b64b4f150d34c93a6b7bd52d6c5c3513761d1fbc7be42d68398b8c10
+file papermono fonts/ttf/PaperMono-Medium.ttf 1609d049b4ec07e358cbd1494afb39886a8415a9a36300222b4d804042803e22
+file papermono fonts/ttf/PaperMono-Bold.ttf 6f7f5849f5e115b538cf2ef40e33bca1bdb4fcf8664553cb4e801aa97332d26c
+file papermono OFL.txt ae8bcaf5a046be7e096b5710a8532cdaa5a299462e182752b805dcfa44370e4c
+# Terminus 4.49.1, Dimitar Toshkov Zhekov (SIL OFL 1.1): a bitmap font with hand-drawn
+# strikes at each cell size; the BDF sources are used as they are
+#   https://terminus-font.sourceforge.net/
+tar terminus https://sourceforge.net/projects/terminus-font/files/terminus-font-4.49/terminus-font-4.49.1.tar.gz/download d961c1b781627bf417f9b340693d64fc219e0113ad3a3af1a3424c7aa373ef79
+file terminus terminus-font-4.49.1/ter-u14b.bdf 00dd0c08c3fae274aa66161d89ffa900cf0b0efec0f114255188c1fb68a8b0da
+file terminus terminus-font-4.49.1/ter-u16b.bdf 92861fecd6f94c5ecc764fc43df5a69eb000ae13a75f652c6525db0495274f0a
+file terminus terminus-font-4.49.1/ter-u20b.bdf 3051598391e5f7f59f09dc5aa26a97700fcbbe57ac315495878c52fc74aba500
+file terminus terminus-font-4.49.1/ter-u24b.bdf 759e0dbbd137d0132cee5d83b681cea1c8a656f161e04f83e121525ea4eb1824
+file terminus terminus-font-4.49.1/OFL.TXT c14f8d795784a547ea35e69c51dee2957bb71a1cdb492ec5321e4b61d3d97630

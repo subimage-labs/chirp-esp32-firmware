@@ -1,0 +1,27 @@
+; Badge: a round monogram for icons and the splash corner; yellow c and orange ! on a deep disc.
+; 23 x 23 art pixels (frame 25 x 25 with the outline margin).
+; Legend: h/b/d body light/mid/dark, f belly, e/a/r orange light/mid/dark,
+; w white, p pupil, c cheek, o outline line, . background. Same rules as logo.h.
+........ooooooo........
+......ooooooooooo......
+....ooodddddddddooo....
+...oooddoooooooddooo...
+..ooddoooooooooooddoo..
+..oodooooooooooooodoo..
+.oodooooooooooooooodoo.
+.oddohhhhhhooooeeeoddo.
+oodohbbddbbhoooearoodoo
+oodohbdoodddoooearoodoo
+oodohbdooooooooearoodoo
+oodohbdooooooooearoodoo
+oodohbdoooooooorrroodoo
+oodohbdoohhhoooooooodoo
+oododbbhhbbdoooeeeoodoo
+.oddoddddddoooorrroddo.
+.oodooooooooooooooodoo.
+..oodooooooooooooodoo..
+..ooddoooooooooooddoo..
+...oooddoooooooddooo...
+....ooodddddddddooo....
+......ooooooooooo......
+........ooooooo........

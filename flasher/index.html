@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chirp installer</title>
+<!-- ESP Web Tools 10.4.0 (Apache-2.0, dist/web copied unchanged into esp-web-tools/)
+     is served with this page: no third-party script runs next to the flasher. -->
+<script type="module" src="./esp-web-tools/install-button.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 42rem; margin: 0 auto;
+         padding: 1.5rem; line-height: 1.5; color: #1a1a1a; }
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.1rem; margin-bottom: 0.4rem; }
+  code { background: #f1f1f1; padding: 0.1rem 0.3rem; border-radius: 4px; }
+  .warning { border-left: 4px solid #c00; padding: 0.5rem 1rem;
+             background: #fdf2f2; }
+  esp-web-install-button { --ewt-button-primary-color: #2c6fbb; }
+</style>
+</head>
+<body>
+<h1>Flash Chirp</h1>
+<p>Install or update the Chirp voice terminal firmware on a
+T-Embed CC1101 Plus, straight from the browser.</p>
+
+<h2>What you need</h2>
+<ul>
+  <li>a T-Embed CC1101 Plus</li>
+  <li>a USB-C cable that carries data (charge-only cables will not work)</li>
+  <li>Chrome or Edge on a desktop computer (the installer uses Web Serial;
+      it does not work on phones, tablets, Safari or Firefox)</li>
+</ul>
+
+<h2>Install</h2>
+<ol>
+  <li>Plug the device into the computer.</li>
+  <li>Click <strong>Install</strong> and pick the device's port.
+      If no port shows up in the list, hold the <strong>BOOT</strong> button
+      on the device while plugging the cable in.</li>
+  <li>The installer asks whether to erase the device — leave the
+      <strong>Erase device</strong> box unticked and click
+      <strong>Next</strong>. Erasing wipes all device settings; a fresh
+      device does not need it.</li>
+  <li>Wait for <em>Installation complete</em>. Leave the cable in if you'll
+      pair over USB with <code>host/pair.py</code>.</li>
+</ol>
+
+<esp-web-install-button manifest="./manifest.json"></esp-web-install-button>
+
+<h2>After the install</h2>
+<p>The device restarts into a setup screen. Finish setup from your Hermes
+machine with <code>host/pair.py</code>, or scan the code shown on the device
+screen with your phone.</p>
+
+<h2>Updating an installed device</h2>
+<p class="warning">Updating works the same way: click
+<strong>Install</strong> over the existing install. Your WiFi and Hermes
+settings are kept — <strong>do not tick “Erase device”</strong>; that wipes
+them and you would need to set the device up again.</p>
+
+<p>The flashing runs entirely in your browser (ESP Web Tools, served from this
+site); nothing is sent to any server.</p>
+</body>
+</html>

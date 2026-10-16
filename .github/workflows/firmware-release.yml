@@ -1,0 +1,87 @@
+name: firmware-release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: pio run -d firmware
+
+      - name: Stage flasher bundle
+        run: |
+          set -eu
+          rm -rf flasher-dist && mkdir flasher-dist
+          cp flasher/index.html flasher-dist/
+          cp -r flasher/esp-web-tools flasher-dist/
+          cp flasher/manifest.json flasher-dist/
+          cp firmware/.pio/build/t-embed-cc1101/bootloader.bin flasher-dist/
+          cp firmware/.pio/build/t-embed-cc1101/partitions.bin flasher-dist/
+          cp firmware/.pio/build/t-embed-cc1101/firmware.bin flasher-dist/
+          cp "$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin" \
+            flasher-dist/
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="$GITHUB_REF_NAME"
+          else
+            VERSION="dev-${GITHUB_SHA:0:7}"
+          fi
+          python - "$VERSION" <<'PY'
+          import json, sys
+          path = "flasher-dist/manifest.json"
+          with open(path) as f:
+              manifest = json.load(f)
+          manifest["version"] = sys.argv[1]
+          with open(path, "w") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+          PY
+
+
+      # Every image that leaves this workflow is scanned for known-private
+      # literals and key material before it is published anywhere.
+      - name: Scan flash images before publishing
+        run: |
+          set -eu
+          for f in flasher-dist/*.bin; do
+            host/check-secrets.sh --scan-artifact "$f"
+          done
+      - name: Upload flasher bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flasher
+          path: flasher-dist/
+          if-no-files-found: error
+
+      - name: Attach images to the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "Chirp $GITHUB_REF_NAME" --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
+            flasher-dist/bootloader.bin \
+            flasher-dist/partitions.bin \
+            flasher-dist/boot_app0.bin \
+            flasher-dist/firmware.bin

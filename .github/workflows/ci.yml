@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      # Publication scan: the tracked tree must be free of secret-shaped
+      # content beyond the reviewed synthetic-test exceptions.
+      - name: Publication scan (source tree)
+        run: host/check-secrets.sh --scan-tree .
+
+
+      # host/test_publish_firmware.py signs and verifies with it.
+      - name: Install python3-cryptography
+        run: sudo apt-get install -y python3-cryptography
+
+      # Ubuntu 24.04 runners default to 32-bit ASLR entropy; TSan binaries
+      # abort with "unexpected memory mapping" unless this is lowered.
+      - name: Lower ASLR entropy for ThreadSanitizer
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Host unit tests (g++ / TSan)
+        run: firmware/test/host/run.sh
+
+      - name: Byte-compile host Python
+        run: python3 -m py_compile host/*.py
+
+      - name: Smoke-test parsing (offline)
+        run: python3 host/test_smoke.py
+
+      - name: Secret guard contract tests
+        run: python3 -m unittest discover -s host -p 'test_check_secrets*.py'
+
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO state
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: pio run -d firmware
