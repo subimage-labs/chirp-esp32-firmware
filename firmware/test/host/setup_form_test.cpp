@@ -345,6 +345,46 @@ static void veniceKeyBelongsToItsHost() {
     CHECK(out.veniceKey == "vkey2" && out.venice == "https://other.example:443");
 }
 
+
+// Venicle submissions never touch the Hermes roster: a submitted agent key
+// was issued by whatever gateway sent it, so it must never be filed under
+// the preserved Hermes host.
+static void veniceIgnoresAgentSubmissions() {
+    DeviceSettings out;
+    SettingsInput in = veniceForm("vkey1");
+    in.hermes = "other";                         // another gateway, and its key
+    in.addProfile = "beta";
+    in.addKey = "otherkey";
+    in.forget = {"alpha"};
+    CHECK(mergeSettings(stored(), in, out) == nullptr);
+    CHECK(out.hermes == "gw:8642");              // preserved, not switched
+    CHECK(out.agents.size() == 1 && out.agents[0].profile == "alpha" &&
+          out.agents[0].key == "storedkey");     // no re-file, no removal
+    CHECK(activeProfile(out) == "alpha");
+}
+
+// The gifting flow: store the backend key with no WiFi yet — storable but
+// not usable — then the portal completes it with the network.
+static void venicePreProvision() {
+    DeviceSettings out;
+    SettingsInput pre;
+    pre.backendSet = true;
+    pre.backend = "venice";
+    pre.veniceKey = "vkey1";
+    CHECK(mergeSettings(DeviceSettings(), pre, out) == nullptr);
+    CHECK(out.ssid.empty() && out.backend == "venice" && out.veniceKey == "vkey1");
+    CHECK(!settingsUsable(out));                 // no WiFi yet: setup mode
+    DeviceSettings ven = out;
+    SettingsInput done;
+    done.ssid = "Home";
+    done.pass = "password1";
+    done.backendSet = true;
+    done.backend = "venice";
+    CHECK(mergeSettings(ven, done, out) == nullptr);
+    CHECK(out.ssid == "Home" && out.veniceKey == "vkey1" && settingsUsable(out));
+    // Local mode never allows the keyless-WiFi state.
+    CHECK(mergeSettings(stored(), form("", "", "gw"), out) != nullptr);
+}
 // An agent's character look (host/pair.py): 24 hex digits of trait indexes.
 static const char* const LOOK = "ffffffff0300ffff0107ff02";
 
@@ -455,6 +495,8 @@ static void usable() {
     CHECK(settingsUsable(v));                               // venice needs no agent
     v.venice = "bad host";
     CHECK(!settingsUsable(v));                              // malformed backend host
+    v.ssid = "";
+    CHECK(!settingsUsable(v));                              // pre-provision: no WiFi yet
 }
 
 static void escaping() {
@@ -528,6 +570,8 @@ int main() {
     backendSwitch();
     veniceHostForms();
     veniceKeyBelongsToItsHost();
+    veniceIgnoresAgentSubmissions();
+    venicePreProvision();
     characterLook();
     sessionFiles();
     usable();

@@ -47,7 +47,7 @@ def read_env(path):
             if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
                 v = v[1:-1]
             vals[k] = v
-    required = (("ssid", "veniceKey") if vals.get("backend") == "venice"
+    required = (("veniceKey",) if vals.get("backend") == "venice"
                 else ("ssid", "hermes", "key"))
     for k in required:
         if not vals.get(k):
@@ -55,7 +55,10 @@ def read_env(path):
     for k, v in vals.items():
         if v.startswith("your-"):
             sys.exit(f"{path}: {k} still has the template placeholder")
-    return {k: vals.get(k, "") for k in FIELDS}
+    out = {k: vals.get(k, "") for k in FIELDS}
+    if not out["backend"]:
+        out["backend"] = "local"      # a local env is an explicit local choice
+    return out
 
 
 def pick_port(preferred=None):

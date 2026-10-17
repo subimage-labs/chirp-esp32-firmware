@@ -289,7 +289,10 @@ static void onSave() {
     in.shim = server.arg("shim").c_str();
     in.backendSet = server.hasArg("backend");
     in.backend = server.arg("backend").c_str();
-    in.venice = server.arg("venice").c_str();
+    // Disabled inputs don't submit: an absent backend host keeps the stored
+    // one (and its key) instead of silently resetting to the default.
+    in.venice = server.hasArg("venice") ? server.arg("venice").c_str()
+                                        : settingsStored().venice;
     in.veniceKey = server.arg("venicekey").c_str();
     in.useSet = server.hasArg("use");
     in.use = server.arg("use").c_str();

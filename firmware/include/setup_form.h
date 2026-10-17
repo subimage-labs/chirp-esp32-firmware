@@ -246,19 +246,23 @@ inline const char* mergeSettings(const DeviceSettings& cur, const SettingsInput&
     DeviceSettings r;
 
     r.ssid = in.ssid;                               // SSIDs may carry spaces: no trim
-    if (r.ssid.empty()) return "Enter the WiFi network name";
     if (r.ssid.size() > 32 || hasControl(r.ssid)) return "WiFi network name is invalid";
+    // An empty ssid waits for the venice pre-provision rule below (key
+    // stored, WiFi picked later in the portal); the password rules need a
+    // network to be about.
 
     r.pass = in.pass;
-    if (in.open) {
-        if (!r.pass.empty()) return "Open network: leave the password blank";
-    } else {
-        if (r.pass.empty() && r.ssid == cur.ssid) r.pass = cur.pass;
-        if (r.pass.empty()) return "Enter the WiFi password, or tick Open network";
-        bool hex64 = r.pass.size() == 64;
-        for (char c : r.pass) hex64 = hex64 && isHex(c);
-        const bool ascii = r.pass.size() >= 8 && r.pass.size() <= 63 && !hasControl(r.pass);
-        if (!hex64 && !ascii) return "WiFi password must be 8-63 characters";
+    if (!r.ssid.empty()) {
+        if (in.open) {
+            if (!r.pass.empty()) return "Open network: leave the password blank";
+        } else {
+            if (r.pass.empty() && r.ssid == cur.ssid) r.pass = cur.pass;
+            if (r.pass.empty()) return "Enter the WiFi password, or tick Open network";
+            bool hex64 = r.pass.size() == 64;
+            for (char c : r.pass) hex64 = hex64 && isHex(c);
+            const bool ascii = r.pass.size() >= 8 && r.pass.size() <= 63 && !hasControl(r.pass);
+            if (!hex64 && !ascii) return "WiFi password must be 8-63 characters";
+        }
     }
 
     std::string backend = in.backendSet ? trim(in.backend) : std::string();
@@ -266,6 +270,8 @@ inline const char* mergeSettings(const DeviceSettings& cur, const SettingsInput&
     r.backend = backend;
     if (r.backend != "local" && r.backend != "venice")
         return "The backend is either Hermes on your network or Venice";
+    if (r.ssid.empty() && r.backend != "venice")
+        return "Enter the WiFi network name";
 
     HostPort hp;
     if (r.backend == "local") {
@@ -314,64 +320,74 @@ inline const char* mergeSettings(const DeviceSettings& cur, const SettingsInput&
     if (r.backend == "venice" && r.veniceKey.empty())
         return "Enter the Venice API key for the backend";
 
-    // Agent keys belong to the gateway that issued them: a different host
-    // starts an empty roster, so no stored key is ever sent to it. Removals
-    // of the old agents are moot then.
-    const bool newGateway = !cur.hermes.empty() && r.hermes != cur.hermes;
-    if (!newGateway) {
+    if (r.backend == "venice") {
+        // Venicle mode touches no local data: the agents, the active index
+        // and the hosts stay exactly as stored. A submitted agent key was
+        // issued by whatever gateway sent it — never file it under the
+        // preserved Hermes host.
         r.agents = cur.agents;
-        for (const std::string& f : in.forget) {
-            const int i = findAgent(r.agents, trim(f));
-            if (i < 0) return "That agent isn't on this device";
-            r.agents.erase(r.agents.begin() + i);
+        r.active = cur.active < cur.agents.size() ? cur.active : 0;
+    } else {
+        // Agent keys belong to the gateway that issued them: a different
+        // host starts an empty roster, so no stored key is ever sent to it.
+        // Removals of the old agents are moot then.
+        const bool newGateway = !cur.hermes.empty() && r.hermes != cur.hermes;
+        if (!newGateway) {
+            r.agents = cur.agents;
+            for (const std::string& f : in.forget) {
+                const int i = findAgent(r.agents, trim(f));
+                if (i < 0) return "That agent isn't on this device";
+                r.agents.erase(r.agents.begin() + i);
+            }
         }
-    }
 
-    std::string active;
-    bool haveActive = false;
-    const std::string addProfile = trim(in.addProfile), addKey = trim(in.addKey);
-    if (const char* e = profileError(addProfile)) return e;
-    std::string look;
-    if (in.lookSet) {
-        if (const char* e = lookError(trim(in.look), &look)) return e;
-        if (addKey.empty() && addProfile.empty())
-            return "A character look needs the agent's profile name";
-    }
-    if (!addKey.empty()) {
-        if (const char* e = keyError(addKey)) return e;
-        const int i = findAgent(r.agents, addProfile);
-        if (i >= 0) {
-            r.agents[i].key = addKey;
-        } else {
-            if (r.agents.size() >= MAX_AGENTS)
-                return "This device holds up to 4 agents; remove one first";
-            r.agents.push_back(Agent{addProfile, addKey, ""});
+        std::string active;
+        bool haveActive = false;
+        const std::string addProfile = trim(in.addProfile), addKey = trim(in.addKey);
+        if (const char* e = profileError(addProfile)) return e;
+        std::string look;
+        if (in.lookSet) {
+            if (const char* e = lookError(trim(in.look), &look)) return e;
+            if (addKey.empty() && addProfile.empty())
+                return "A character look needs the agent's profile name";
         }
-        if (in.lookSet) r.agents[findAgent(r.agents, addProfile)].look = look;
-        active = addProfile;
-        haveActive = true;
-    } else if (!addProfile.empty()) {
-        if (findAgent(r.agents, addProfile) < 0)
-            return "Enter the API key for the new agent. Its profile must already exist "
-                   "on Hermes: host/pair.py --create NAME makes one and sends the key";
-        if (in.lookSet) r.agents[findAgent(r.agents, addProfile)].look = look;
-        active = addProfile;
-        haveActive = true;
-    } else if (in.useSet) {
-        // Marked "use" and also removed (the form's default when removing the
-        // active agent): the first remaining agent takes over.
-        if (findAgent(cur.agents, trim(in.use)) < 0) return "That agent isn't on this device";
-        active = trim(in.use);
-        haveActive = findAgent(r.agents, active) >= 0;
-    } else if (cur.active < cur.agents.size()) {
-        active = cur.agents[cur.active].profile;
-        haveActive = findAgent(r.agents, active) >= 0;
+        if (!addKey.empty()) {
+            if (const char* e = keyError(addKey)) return e;
+            const int i = findAgent(r.agents, addProfile);
+            if (i >= 0) {
+                r.agents[i].key = addKey;
+            } else {
+                if (r.agents.size() >= MAX_AGENTS)
+                    return "This device holds up to 4 agents; remove one first";
+                r.agents.push_back(Agent{addProfile, addKey, ""});
+            }
+            if (in.lookSet) r.agents[findAgent(r.agents, addProfile)].look = look;
+            active = addProfile;
+            haveActive = true;
+        } else if (!addProfile.empty()) {
+            if (findAgent(r.agents, addProfile) < 0)
+                return "Enter the API key for the new agent. Its profile must already exist "
+                       "on Hermes: host/pair.py --create NAME makes one and sends the key";
+            if (in.lookSet) r.agents[findAgent(r.agents, addProfile)].look = look;
+            active = addProfile;
+            haveActive = true;
+        } else if (in.useSet) {
+            // Marked "use" and also removed (the form's default when removing
+            // the active agent): the first remaining agent takes over.
+            if (findAgent(cur.agents, trim(in.use)) < 0)
+                return "That agent isn't on this device";
+            active = trim(in.use);
+            haveActive = findAgent(r.agents, active) >= 0;
+        } else if (cur.active < cur.agents.size()) {
+            active = cur.agents[cur.active].profile;
+            haveActive = findAgent(r.agents, active) >= 0;
+        }
+        if (r.agents.empty())
+            return newGateway ? "A new Hermes host needs an agent from it: enter its profile name "
+                                "and API key (agents of the previous host are removed)"
+                              : "Add a Hermes agent: its profile name and API key";
+        r.active = haveActive ? (size_t)findAgent(r.agents, active) : 0;
     }
-    if (r.backend != "venice" && r.agents.empty())
-        return newGateway ? "A new Hermes host needs an agent from it: enter its profile name "
-                            "and API key (agents of the previous host are removed)"
-                          : "Add a Hermes agent: its profile name and API key";
-    r.active = haveActive ? (size_t)findAgent(r.agents, active) : 0;
 
     out = r;
     return nullptr;
@@ -394,6 +410,7 @@ inline std::string sessionFileName(const std::string& hermes, const std::string&
 // agent is valid.
 inline bool settingsUsable(const DeviceSettings& s) {
     using namespace setup_form;
+    if (s.ssid.empty()) return false;    // venice pre-provision: stored, not runnable
     const bool venice = s.backend == "venice";
     if ((!venice && s.agents.empty()) || s.agents.size() > MAX_AGENTS ||
         (!s.agents.empty() && s.active >= s.agents.size()))

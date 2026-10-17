@@ -470,7 +470,8 @@ def handoff_usb(args, host, profile, api_key, look=None):
     port = provision.pick_port(args.port)
     if not ask(f"Device found on {port}. Add '{profile_label(profile)}' to it and use it"):
         return
-    settings = {"hermes": host, "key": api_key, "profile": profile, "shim": ""}
+    settings = {"backend": "local", "hermes": host, "key": api_key, "profile": profile,
+                "shim": ""}
     if look is not None:
         settings["look"] = look
     ssid = os.environ.get("WIFI_SSID")
