@@ -5,7 +5,9 @@ Reads the gitignored firmware/device.env (template: firmware/device.env.example)
 and sends one `settings {json}` line (firmware/include/console.h). The device
 checks it with the setup form's rules, stores it in NVS and restarts. The
 file's profile + key become one of the device's agents (up to 4) and the one
-in use; agents added earlier stay.
+in use; agents added earlier stay. backend="venice" switches the device to
+the Venice backend instead: veniceKey is required then, and the Hermes
+members are ignored (they stay stored for a switch back).
 
 Values are never printed: agents run this, and their output lands in
 transcripts. Works alongside serial-watch.py (the reply is read from its log).
@@ -25,8 +27,8 @@ import time
 import tty
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIELDS = ("ssid", "pass", "hermes", "key", "profile", "shim")
-REQUIRED = ("ssid", "hermes", "key")
+FIELDS = ("ssid", "pass", "backend", "hermes", "key", "profile", "shim",
+          "venice", "veniceKey")
 LOG = "/tmp/chirp-serial.log"
 REPLY_S = 25.0          # a booting device reads serial only after its WiFi wait (15 s)
 
@@ -45,7 +47,9 @@ def read_env(path):
             if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
                 v = v[1:-1]
             vals[k] = v
-    for k in REQUIRED:
+    required = (("ssid", "veniceKey") if vals.get("backend") == "venice"
+                else ("ssid", "hermes", "key"))
+    for k in required:
         if not vals.get(k):
             sys.exit(f"{path}: {k} is required")
     for k, v in vals.items():

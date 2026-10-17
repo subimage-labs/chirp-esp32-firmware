@@ -14,6 +14,10 @@
 
 #include "setup_form.h"
 
+// Local mode derives every URL from the Hermes and shim hosts. Venice mode
+// derives chat/STT/TTS from the backend base (<venice>/api/v1/...), sends
+// the backend key, probes /api/v1/models for health, and has no server
+// sessions and no shim OTA (those fields stay empty; updates are USB-only).
 struct Endpoints {
     String chatUrl;       // http://hermes[/p/<profile>]/v1/chat/completions
     String sessionsUrl;   // http://hermes[/p/<profile>]/api/sessions

@@ -14,6 +14,10 @@
 
 static const uint16_t HERMES_PORT_DEFAULT = 8642;
 static const uint16_t SHIM_PORT_DEFAULT = 8643;
+static const uint16_t VENICE_PORT_DEFAULT = 443;
+// The venice-mode backend: scheme + canonical host:port. https unless the
+// user spells out http:// for a bench-local test backend.
+static const char VENICE_HOST_DEFAULT[] = "https://api.venice.ai:443";
 static const size_t MAX_AGENTS = 4;
 
 // One Hermes agent the device can talk to: a profile on the gateway and its
@@ -30,10 +34,18 @@ static const size_t LOOK_HEX_LEN = 24;
 
 // Stored settings (NVS). hermes and shim are canonical "host:port"; an empty
 // shim means the Hermes host on SHIM_PORT_DEFAULT; an empty pass means an
-// open network. All agents live on the one Hermes host; `active` indexes the
-// one the device answers as.
+// open network. backend picks the mode: "local" talks to hermes/shim over
+// the LAN; "venice" talks TLS to the venice backend (scheme + canonical
+// host:port, default VENICE_HOST_DEFAULT) with veniceKey as its only
+// credential — a key belongs to the backend it was issued for, so a
+// different backend host never inherits it. The local-mode fields keep
+// their values across a mode switch. All agents live on the one Hermes
+// host; `active` indexes the one the device answers as.
 struct DeviceSettings {
     std::string ssid, pass, hermes, shim;
+    std::string backend = "local";
+    std::string venice = VENICE_HOST_DEFAULT;
+    std::string veniceKey;
     std::vector<Agent> agents;
     size_t active = 0;
 };
@@ -42,8 +54,12 @@ struct DeviceSettings {
 // The caller fills every field it doesn't change from the stored settings.
 struct SettingsInput {
     std::string ssid, pass, hermes, shim;
-    bool open = false;                    // network has no password
-    bool useSet = false;                  // make `use` the active agent
+    bool backendSet = false;               // choose the mode
+    std::string backend;                   // "local" | "venice"
+    std::string venice;                    // backend host; "" = the default
+    std::string veniceKey;                 // "" keeps the stored key
+    bool open = false;                     // network has no password
+    bool useSet = false;                   // make `use` the active agent
     std::string use;
     std::vector<std::string> forget;      // profiles to remove
     std::string addProfile, addKey;       // add (or re-key) one agent
@@ -51,9 +67,12 @@ struct SettingsInput {
     std::string look;                     // "" clears it
 };
 
+enum class Scheme : uint8_t { Bare, Http, Https };
+
 struct HostPort {
     std::string host;
     uint16_t port;
+    Scheme scheme;                         // the URL prefix as the user wrote it
 };
 
 inline std::string agentLabel(const std::string& profile) {
@@ -99,14 +118,21 @@ inline bool startsWithNoCase(const std::string& s, const char* prefix) {
 
 }  // namespace setup_form
 
-// Accepts "host", "host:port" and pasted URLs "http://host[:port][/]".
+// Accepts "host", "host:port" and pasted URLs "http(s)://host[:port][/]".
 // Hosts are names or IPv4 (letters, digits, '.', '-'); no other scheme, no
-// path. Missing port = defPort.
+// path. Missing port = defPort; the scheme as written is remembered in `out`.
 inline bool parseHostPort(const std::string& in, uint16_t defPort, HostPort& out) {
     using namespace setup_form;
     std::string s = trim(in);
-    if (startsWithNoCase(s, "http://")) s = s.substr(7);
-    if (s.find("://") != std::string::npos) return false;   // https:// etc.
+    Scheme scheme = Scheme::Bare;
+    if (startsWithNoCase(s, "http://")) {
+        s = s.substr(7);
+        scheme = Scheme::Http;
+    } else if (startsWithNoCase(s, "https://")) {
+        s = s.substr(8);
+        scheme = Scheme::Https;
+    }
+    if (s.find("://") != std::string::npos) return false;   // ftp:// etc.
     if (!s.empty() && s[s.size() - 1] == '/') s.erase(s.size() - 1);
     std::string host = s;
     uint32_t port = defPort;
@@ -127,11 +153,19 @@ inline bool parseHostPort(const std::string& in, uint16_t defPort, HostPort& out
         if (!isAlnum(c) && c != '.' && c != '-') return false;
     out.host = host;
     out.port = (uint16_t)port;
+    out.scheme = scheme;
     return true;
 }
 
 inline std::string hostPortString(const HostPort& hp) {
     return hp.host + ":" + std::to_string(hp.port);
+}
+
+// Canonical backend string with its scheme: https unless http:// was spelled
+// out (a bench-local test backend).
+inline std::string hostSchemeString(const HostPort& hp) {
+    return std::string(hp.scheme == Scheme::Http ? "http://" : "https://") +
+           hp.host + ":" + std::to_string(hp.port);
 }
 
 inline int findAgent(const std::vector<Agent>& agents, const std::string& profile) {
@@ -147,6 +181,14 @@ inline const char* keyError(const std::string& key) {
     if (key.size() > 256) return "Hermes API key is too long";
     for (char c : key)
         if (c <= ' ' || c == 0x7f) return "Hermes API key has spaces or invalid characters";
+    return nullptr;
+}
+
+inline const char* veniceKeyError(const std::string& key) {
+    if (key.empty()) return "Enter the Venice API key";
+    if (key.size() > 256) return "Venice API key is too long";
+    for (char c : key)
+        if (c <= ' ' || c == 0x7f) return "Venice API key has spaces or invalid characters";
     return nullptr;
 }
 
@@ -180,6 +222,10 @@ inline const char* profileError(const std::string& profile) {
 //     rather than silently dropped. Otherwise a blank password keeps the
 //     stored one when the network is unchanged; a new network needs one.
 //   - Blank shim = the Hermes host.
+//   - backend: "local" (the default) or "venice". A venice device skips the
+//     Hermes fields (keeping them stored for a switch back), needs the
+//     backend's API key, and never carries a key to a different backend
+//     host — the same rule as the Hermes agents below.
 //   - A different Hermes host (canonical host:port) drops every stored
 //     agent: their keys were issued by the old gateway and must never be
 //     sent to another. The submission has to add an agent for the new host.
@@ -215,19 +261,58 @@ inline const char* mergeSettings(const DeviceSettings& cur, const SettingsInput&
         if (!hex64 && !ascii) return "WiFi password must be 8-63 characters";
     }
 
-    HostPort hp;
-    const std::string hermes = trim(in.hermes);
-    if (hermes.empty()) return "Enter the Hermes host";
-    if (!parseHostPort(hermes, HERMES_PORT_DEFAULT, hp))
-        return "Hermes host must look like name or name:port (http only)";
-    r.hermes = hostPortString(hp);
+    std::string backend = in.backendSet ? trim(in.backend) : std::string();
+    if (backend.empty()) backend = cur.backend.empty() ? "local" : cur.backend;
+    r.backend = backend;
+    if (r.backend != "local" && r.backend != "venice")
+        return "The backend is either Hermes on your network or Venice";
 
-    const std::string shim = trim(in.shim);
-    if (!shim.empty()) {
-        if (!parseHostPort(shim, SHIM_PORT_DEFAULT, hp))
-            return "Audio shim host must look like name or name:port (http only)";
-        r.shim = hostPortString(hp);
+    HostPort hp;
+    if (r.backend == "local") {
+        const std::string hermes = trim(in.hermes);
+        if (hermes.empty()) return "Enter the Hermes host";
+        if (!parseHostPort(hermes, HERMES_PORT_DEFAULT, hp))
+            return "Hermes host must look like name or name:port";
+        if (hp.scheme == Scheme::Https)
+            return "The Hermes host speaks plain http on the LAN";
+        r.hermes = hostPortString(hp);
+
+        const std::string shim = trim(in.shim);
+        if (!shim.empty()) {
+            if (!parseHostPort(shim, SHIM_PORT_DEFAULT, hp))
+                return "Audio shim host must look like name or name:port";
+            if (hp.scheme == Scheme::Https)
+                return "The audio shim speaks plain http on the LAN";
+            r.shim = hostPortString(hp);
+        }
+    } else {
+        // A venice device keeps its local-mode fields for the switch back.
+        r.hermes = cur.hermes;
+        r.shim = cur.shim;
     }
+
+    // The venice backend: canonical host (blank = the default) and its key.
+    // The key was issued by the backend it came from: a different host never
+    // inherits it.
+    {
+        HostPort vp;
+        const std::string given = trim(in.venice);
+        if (!parseHostPort(given.empty() ? std::string(VENICE_HOST_DEFAULT) : given,
+                           VENICE_PORT_DEFAULT, vp))
+            return "Venice host must look like host, host:port or https://host:port";
+        r.venice = hostSchemeString(vp);
+    }
+    {
+        const std::string vkey = trim(in.veniceKey);
+        if (!vkey.empty()) {
+            if (const char* e = veniceKeyError(vkey)) return e;
+            r.veniceKey = vkey;
+        } else if (r.venice == cur.venice || cur.venice.empty()) {
+            r.veniceKey = cur.veniceKey;
+        }                                   // else: a new host, the key is dropped
+    }
+    if (r.backend == "venice" && r.veniceKey.empty())
+        return "Enter the Venice API key for the backend";
 
     // Agent keys belong to the gateway that issued them: a different host
     // starts an empty roster, so no stored key is ever sent to it. Removals
@@ -282,7 +367,7 @@ inline const char* mergeSettings(const DeviceSettings& cur, const SettingsInput&
         active = cur.agents[cur.active].profile;
         haveActive = findAgent(r.agents, active) >= 0;
     }
-    if (r.agents.empty())
+    if (r.backend != "venice" && r.agents.empty())
         return newGateway ? "A new Hermes host needs an agent from it: enter its profile name "
                             "and API key (agents of the previous host are removed)"
                           : "Add a Hermes agent: its profile name and API key";
@@ -305,10 +390,13 @@ inline std::string sessionFileName(const std::string& hermes, const std::string&
 }
 
 // Stored settings are usable only if they would pass the form on their own
-// (an empty stored password is an open network) and every agent is valid.
+// (an empty stored password is an open network) and, in local mode, every
+// agent is valid.
 inline bool settingsUsable(const DeviceSettings& s) {
     using namespace setup_form;
-    if (s.agents.empty() || s.agents.size() > MAX_AGENTS || s.active >= s.agents.size())
+    const bool venice = s.backend == "venice";
+    if ((!venice && s.agents.empty()) || s.agents.size() > MAX_AGENTS ||
+        (!s.agents.empty() && s.active >= s.agents.size()))
         return false;
     for (size_t i = 0; i < s.agents.size(); i++) {
         if (keyError(s.agents[i].key) || profileError(s.agents[i].profile)) return false;
@@ -319,8 +407,12 @@ inline bool settingsUsable(const DeviceSettings& s) {
     in.ssid = s.ssid;
     in.pass = s.pass;
     in.open = s.pass.empty();
+    in.backend = s.backend;                     // re-validated by the merge
+    in.backendSet = true;
     in.hermes = s.hermes;
     in.shim = s.shim;
+    in.venice = s.venice;
+    in.veniceKey = s.veniceKey;
     DeviceSettings ignored;
     return mergeSettings(s, in, ignored) == nullptr;
 }

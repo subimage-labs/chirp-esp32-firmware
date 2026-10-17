@@ -75,8 +75,11 @@ edits via the other tmux pane.
    moves only through the handoffs documented there. Pure logic (policies,
    decoders, packers) lives in Arduino-free headers with host tests. Keep it
    that way: new state gets one owner, new logic that can be pure is pure.
-6. **LAN-only audio path.** The device talks only to the workstation.
-   Do not introduce external/cloud endpoints into the audio pipeline.
+6. **Audio path backends.** Local mode talks only to the workstation over
+   the LAN, plain HTTP: no other cloud endpoint may enter it. Venice mode
+   talks TLS to the configured backend host (a device setting, default
+   api.venice.ai) for chat, STT and TTS; that host is the one cloud endpoint
+   the firmware may call.
 7. **Nothing that profiles the owner.** No LAN IPs, hostnames, network maps,
    device inventory, or security-lab details in tracked files or commit
    messages. Private planning notes live in the gitignored `tmp/`.
