@@ -22,7 +22,11 @@ static int probe(const String& url) {
 const char* selfTestRun() {
     const bool wifi = WiFi.status() == WL_CONNECTED;
     const int hermes = wifi ? hermesProbe() : 0;
-    const int shim = wifi ? probe(settingsEndpoints().shimHealthUrl) : 0;
+    // Venicle has one endpoint to check: the authed /models probe above
+    // stands in for the shim's /health.
+    const int shim = !wifi ? 0 : (settingsStored().backend == "venice"
+                                      ? hermes
+                                      : probe(settingsEndpoints().shimHealthUrl));
     const char* problem = selfTestProblem(wifi, hermes, shim);
     Serial.printf("[SelfTest] %s\n", problem ? problem : "ok");
     return problem;

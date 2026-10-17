@@ -323,7 +323,7 @@ def gateway_on_lan(host):
     print("protected by its own API key, but anyone on the LAN can then try them.")
     if not ask("Open the gateway to the LAN now"):
         print("pair: leaving it as is — the device will report "
-              "'Hermes unreachable' until it is opened")
+              "'Backend unreachable' until it is opened")
         return False
     r = hermes("", "config", "set", "platforms.api_server.host", "0.0.0.0")
     if r.returncode != 0:

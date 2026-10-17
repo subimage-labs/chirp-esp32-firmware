@@ -263,6 +263,8 @@ static bool downloadAndFlash(const OtaManifest& m, const char*& reason) {
 const char* otaVersion() { return kFwVersion; }
 
 void otaBootCheck() {
+    if (settingsEndpoints().otaManifestUrl.length() == 0)
+        return;         // venice mode: nothing serves updates; USB only
     Serial.printf("[OTA] running %s build %s\n", kFwVersion, kBuildText);
     if (!kOtaPub) {
         Serial.println("[OTA] no signing key in this build; updates off");

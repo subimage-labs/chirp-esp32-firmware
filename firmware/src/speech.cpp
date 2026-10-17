@@ -21,6 +21,9 @@
 #include "sentence_packer.h"
 #include "settings.h"
 #include "turn.h"
+#include "venice.h"
+#include "venice_policy.h"
+#include "turn.h"
 
 static Audio audio(false, 3, I2S_NUM_1);          // playback owns I2S1
 static uint8_t volume = DEFAULT_VOLUME;           // loop
@@ -286,15 +289,23 @@ SpeakStep speechTick() {
 static void ttsFetchPSRAM(const std::string& text, uint8_t*& out, size_t& outSize) {
     out = nullptr;
     outSize = 0;
+    const bool venice = settingsStored().backend == "venice";
     JsonDocument req;
+    if (venice) req["model"] = venice_policy::TTS_MODEL;
     req["input"] = text.c_str();
     req["voice"] = TTS_VOICE;
     String body;
     serializeJson(req, body);
+    if (venice && !veniceClock(8000)) return;
     HTTPClient http;
-    http.begin(settingsEndpoints().ttsUrl);
+    if (venice ? !veniceHttpBegin(http, settingsEndpoints().ttsUrl)
+               : !http.begin(settingsEndpoints().ttsUrl)) {
+        http.end();
+        return;
+    }
     http.setTimeout(TTS_TIMEOUT_MS);
     http.addHeader("Content-Type", "application/json");
+    if (venice) http.addHeader("Authorization", settingsEndpoints().auth);
     const int code = http.POST(body);
     if (code != HTTP_CODE_OK) {
         Serial.printf("[TTS] HTTP %d: %s\n", code,

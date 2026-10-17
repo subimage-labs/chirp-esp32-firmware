@@ -7,6 +7,8 @@
 
 #include "config.h"
 #include "settings.h"
+#include "venice.h"
+#include "venice_policy.h"
 
 static uint8_t* wavBuf = nullptr;                 // PSRAM: WAV header + PCM
 static size_t pcmLen = 0;
@@ -109,6 +111,8 @@ void captureReset(int16_t peak) {
 
 void captureStreamOpen() {
     wavStreamLive = false;
+    if (settingsStored().backend == "venice")
+        return;              // no streaming-socket upstream: buffered POST below
     const Endpoints& ep = settingsEndpoints();
     if (WiFi.status() != WL_CONNECTED ||
         !wavStream.connect(ep.shimHost.c_str(), ep.shimPort, 1500))
@@ -153,10 +157,16 @@ bool captureWorthSending() { return pcmLen >= MIN_TURN_PCM && clipPeak >= SILENC
 
 // ---------------------------------------------------------------- STT
 static bool sttTranscribe(String& text) {
+    const bool venice = settingsStored().backend == "venice";
     const char* B = "ChirpClip";
-    String head = String("--") + B + "\r\n"
-                  "Content-Disposition: form-data; name=\"file\"; filename=\"clip.wav\"\r\n"
-                  "Content-Type: audio/wav\r\n\r\n";
+    String head;
+    if (venice)
+        head = String("--") + B +
+               "\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n" +
+               venice_policy::STT_MODEL + "\r\n";
+    head += String("--") + B + "\r\n"
+            "Content-Disposition: form-data; name=\"file\"; filename=\"clip.wav\"\r\n"
+            "Content-Type: audio/wav\r\n\r\n";
     String tail = String("\r\n--") + B + "--\r\n";
     const size_t wavLen = WAV_HDR + pcmLen;
     const size_t total = head.length() + wavLen + tail.length();
@@ -167,10 +177,16 @@ static bool sttTranscribe(String& text) {
     memcpy(body + head.length(), wavBuf, wavLen);
     memcpy(body + head.length() + wavLen, tail.c_str(), tail.length());
 
+    if (venice && !veniceClock(8000)) return false;
     HTTPClient http;
-    http.begin(settingsEndpoints().sttUrl);
+    if (venice ? !veniceHttpBegin(http, settingsEndpoints().sttUrl)
+               : !http.begin(settingsEndpoints().sttUrl)) {
+        http.end();
+        return false;
+    }
     http.setTimeout(STT_TIMEOUT_MS);
     http.addHeader("Content-Type", "multipart/form-data; boundary=" + String(B));
+    if (venice) http.addHeader("Authorization", settingsEndpoints().auth);
     const int code = http.POST(body, total);
     heap_caps_free(body);
     if (code != HTTP_CODE_OK) {

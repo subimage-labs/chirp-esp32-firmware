@@ -295,7 +295,7 @@ def turn_verdict(lines):
     end = next((l for l in lines if l.startswith("[Speak] end")), None)
     errs = [l.strip() for l in lines
             if l.startswith("[Hermes]") and ("HTTP" in l or "refused" in l)
-            or "Hermes unreachable" in l]
+            or "Backend unreachable" in l]
     if any(l.startswith("[Bench] ask refused") for l in lines):
         return False, "ask refused: device not idle"
     if not end:

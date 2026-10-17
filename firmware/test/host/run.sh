@@ -34,6 +34,9 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/setup_form_test.cpp" -o "$out/setup_form_test"
 "$out/setup_form_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/venice_policy_test.cpp" -o "$out/venice_policy_test"
+"$out/venice_policy_test"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/selftest_policy_test.cpp" -o "$out/selftest_policy_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/ota_policy_test.cpp" -o "$out/ota_policy_test"
