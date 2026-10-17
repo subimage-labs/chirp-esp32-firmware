@@ -89,7 +89,11 @@ def send_settings(settings, port=None):
     itself. Raises RuntimeError when no reply arrives within REPLY_S. Values
     are never printed; only the chosen port and the reply are.
     """
-    line = ("settings " + json.dumps(settings, separators=(",", ":")) + "\n").encode()
+    # Empty members are omitted, not sent: an absent member keeps the stored
+    # value on the device, while an explicit "" clears it (ssid, hosts, keys).
+    # `pass` is the exception — its empty string means an open network.
+    members = {k: v for k, v in settings.items() if v != "" or k == "pass"}
+    line = ("settings " + json.dumps(members, separators=(",", ":")) + "\n").encode()
 
     port = pick_port(port)
     if not port:

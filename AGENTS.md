@@ -121,6 +121,17 @@ Hard-won procedure — every step below exists because skipping it broke a flash
    `Hash of data verified` + `SUCCESS`. Never `&&`-chain build→upload→commit
    behind a trailing `&`/`disown`: a failed build still uploaded the stale
    binary, and backgrounding swallowed the commit step silently.
+   Also: `PLATFORMIO_BUILD_FLAGS=-DBENCH_CMDS` does not dirty the build —
+   after a normal `pio run`, the bench build can silently re-serve the
+   non-bench binary. `pio run -t clean` before switching variants, and
+   verify the marker (`grep -c "Bench] > " firmware/.pio/build/*/firmware.bin`
+   must be 1); a device that ignores bench lines but answers `settings` is
+   running the non-bench image.
+2b. **A USB flash only writes app0.** A device that took a WiFi update boots
+   app1 (0x650000) and silently ignores the fresh app0 image — the `[OTA]
+   running <version>` line tells the truth. Write the image to 0x650000 as
+   well (`esptool write_flash 0x650000 firmware/.pio/build/*/firmware.bin`)
+   or check otadata before trusting the flash.
 3. **Port name drifts.** The S3 re-enumerates after resets (ACM0 → ACM1). If
    the upload can't open the port: `ls /dev/ttyACM*`.
 4. **Stuck in download mode, or silent after an upload** (`waiting for
