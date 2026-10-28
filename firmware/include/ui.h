@@ -12,6 +12,7 @@
 #include "app.h"
 #include "battery.h"
 #include "theme.h"
+#include "ui_layout.h"
 
 void uiBegin();                 // panel init, rotation, saved theme, backlight at full
 void uiPanelOff();              // DISPOFF + SLPIN, backlight pin driven low and held
@@ -22,7 +23,10 @@ TFT_eSPI& uiTft();              // for screens that draw themselves (menu, porta
 void uiPanelHold();             // loop, after drawing: re-sends the panel's inversion (ui.cpp)
 int uiContentTop();
 int uiContentBottom();
-int uiBannerHeight();                   // the companion banner above the transcript (0 without one)
+// The chat view's companion on this panel (ui_layout.h): its area and the
+// avatar's scale, or Companion::None (no room, not this board, or the
+// character view is up). character.cpp draws and animates it.
+ui_layout::Companion uiCompanion(ui_layout::Rect& area, int& scale);
 // The typed compose line (chat view, above the status strip): the text to
 // show, or null/"" for the empty prompt. The cursor blinks on uiTick.
 void uiComposeSet(const char* text);

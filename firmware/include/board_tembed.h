@@ -40,6 +40,11 @@
 // Keys that may wake the chip from deep sleep (RTC-capable, active low).
 #define CHIRP_WAKE_KEYS {PTT_BTN_PIN, ENCODER_BTN_PIN}
 
+// The two controls' names in the hints ("Wheel=select  Encoder=open").
+#define CHIRP_TURN "Wheel"
+#define CHIRP_PRESS "Encoder"
+#define CHIRP_SIDE "side key"
+
 // The READY screen's hint lines.
 #define CHIRP_HINT1 "Hold encoder to talk"
 #define CHIRP_HINT2 "Double-tap for voice mode"

@@ -22,23 +22,22 @@
 #include "voice.h"
 
 // ---------------------------------------------------------------- layout
-// The view takes the whole screen (no status strip). Landscape (wide panel):
-// the sprite on the left, centred vertically, the bubble column on the right
-// (bubbles.h). Portrait (tall panel): the sprite centred at the top, the
-// column under it, nearly full width. Everything derives from the panel's
-// rotated size, so a board just picks a rotation.
-static const int SCALE = 4;                       // 32x32 logical -> 128x128 px
+// The view takes the whole screen (no status strip): the avatar and the
+// bubble column (bubbles.h), placed by ui_layout.h sceneLayout (host-tested
+// on every common panel): beside each other or the avatar above, whichever
+// lets the avatar be larger while the column stays readable.
+static const int MAX_SCALE = 4;                   // the largest the scene or the companion draws
 static const int SB_LANE = 4;                     // scrollbar (3 px) at the column's right edge
 static const int BORDER = 2;                      // bubble outline, also the corner notch
 static const int TAIL_ROWS = 4, TAIL_STEP = 2;    // the tail's stair: 4 steps of 2 px
 
-static bool layoutTall() { return uiTft().height() > uiTft().width(); }
-static int sprX() { return layoutTall() ? (uiTft().width() - avatar::W * SCALE) / 2 : 12; }
-static int sprY() { return layoutTall() ? 8 : (uiTft().height() - avatar::H * SCALE) / 2; }
-static int colX() { return layoutTall() ? 4 : 12 + avatar::W * SCALE + 6; }
-static int colW() { return uiTft().width() - colX() - 2; }
-static int colY() { return layoutTall() ? 8 + avatar::H * SCALE + 6 : 0; }
-static int colView() { return uiTft().height() - colY(); }
+static ui_layout::Scene scene() { return ui_layout::sceneLayout(uiTft().width(), uiTft().height()); }
+static int sprX() { return scene().sprX; }
+static int sprY() { return scene().sprY; }
+static int colX() { return scene().col.x; }
+static int colW() { return scene().col.w; }
+static int colY() { return scene().col.y; }
+static int colView() { return scene().col.h; }
 
 static bubbles::Geometry geom() {
     // colW, tail, inset (owner), agentInset, padX, padY, lineH, gap, margin
@@ -216,9 +215,8 @@ static uint32_t reactSince = 0;
 
 bool characterOn() { return on && ready; }
 
-// Chirper tab layout: the sprite at 3x (96 px, it must fit under the menu
-// header), the labels to its right.
-static const int AV_SCALE = 3, AV_X = 18, AV_TEXT_X = 132;
+// Chirper tab layout: ui_layout.h previewLayout (the sprite at 3x where its
+// card has the height, 2x otherwise; the labels to its right).
 
 const char* characterStateName() {
     static const char* const N[] = {"idle", "listening", "thinking", "speaking", "error", "sleep"};
@@ -330,7 +328,7 @@ static void updatePalette() {
     for (int i = 0; i < avatar::SlotCount; i++) pal[i] = (uint16_t)((p[i] >> 8) | (p[i] << 8));
 }
 
-// One logical row expands to SCALE identical panel rows; a single window and
+// One logical row expands to `scale` identical panel rows; a single window and
 // one pushPixels per logical row keep the SPI busy with pixel data only. Rows
 // at or below uiStripTop (the strip up over the character view) are skipped.
 static void pushSprite(const avatar::Rect& r, const uint8_t* frame, int ox, int oy, int scale) {
@@ -340,7 +338,7 @@ static void pushSprite(const avatar::Rect& r, const uint8_t* frame, int ox, int 
     const int top = oy + r.y0 * scale;
     const int rows = min((r.y1 - r.y0) * scale, uiStripTop() - top);
     if (rows <= 0) return;
-    alignas(4) static uint16_t rowbuf[SCALE * avatar::W * SCALE + 2];   // +2: pushPixels reads whole words
+    alignas(4) static uint16_t rowbuf[MAX_SCALE * avatar::W * MAX_SCALE + 2];   // +2: pushPixels reads whole words
     tft.startWrite();
     tft.setAddrWindow(ox + r.x0 * scale, top, pw, rows);
     int left = rows;
@@ -450,70 +448,106 @@ static uint8_t drawFrameInto(uint8_t* shownBuf, bool& valid, int ox, int oy, int
 }
 
 static void drawFrame(uint32_t now, bool all) {
-    drawFrameInto(shown, shownValid, sprX(), sprY(), SCALE, now, all);
+    drawFrameInto(shown, shownValid, sprX(), sprY(), scene().scale, now, all);
 }
 
-// ---------------------------------------------------------------- banner
+// ---------------------------------------------------------------- companion
 #if CHIRP_BANNER
-// The chat view's companion banner (ui.cpp reserves uiBannerHeight()): the
-// avatar at 4x, its state and a level meter, always visible while chatting.
-// It shares the view's state machine and reactions; the transcript renders
-// under it and its dirty-rect pushes animate between renders.
-// The banner's scale follows the band ui.cpp reserved (uiBannerHeight).
-static int bScale() { return max(1, (uiBannerHeight() - 8) / avatar::H); }
-static const int B_X = 6, B_Y = 4;
+// The chat view's companion: the avatar, the agent's name, its state and a
+// level meter, always visible while chatting. Where it goes on this panel is
+// ui_layout.h (ui.cpp uiCompanion): a top band puts the avatar left and the
+// rest beside it, a rail stacks them under the avatar. It shares the view's
+// state machine and reactions; its dirty-rect pushes animate between the
+// transcript's renders. The geometry is computed on each full paint (a font
+// change repaints) and the tick reuses it.
+namespace ul = ui_layout;
+struct CompanionGeo {
+    ul::Companion kind = ul::Companion::None;
+    ul::Rect area{}, meta{}, meter{};            // meta: the name, then the state
+    int scale = 0, avX = 0, avY = 0;
+};
+static CompanionGeo bGeo;
 static uint8_t bShown[avatar::PIXELS];
 static bool bValid = false;
 static uint32_t bLastTick = 0;
 static int bMeterW = -1;                        // last painted meter fill
 
-static int bannerMeterY() { return uiBannerHeight() - 16; }
+static bool companionGeo(CompanionGeo& g) {
+    g.kind = uiCompanion(g.area, g.scale);
+    if (g.kind == ul::Companion::None) return false;
+    const int av = avatar::W * g.scale, P = ul::PAD, METER_H = 8;
+    uiFont(UiFont::Small);
+    const int small = uiFontHeight();
+    uiFont(UiFont::Body);
+    if (g.kind == ul::Companion::Top) {
+        g.avX = g.area.x + P;
+        g.avY = g.area.y + P;
+        const int x = g.avX + av + 8, w = g.area.right() - x - P;
+        g.meter = {x, g.area.bottom() - P - METER_H, w, METER_H};
+        g.meta = {x, g.area.y + P, w, g.meter.y - 2 - (g.area.y + P)};
+    } else {                                    // a rail: the stack centred in it
+        const int stack = ul::railStackH(g.scale, uiLineHeight(), small);
+        g.avX = g.area.x + (g.area.w - av) / 2;
+        g.avY = g.area.y + max(0, (g.area.h - stack) / 2) + P;
+        const int x = g.area.x + P, w = g.area.w - 2 * P;
+        g.meta = {x, g.avY + av + P, w, uiLineHeight() + 2 + small};
+        g.meter = {x, g.meta.bottom() + P, w, METER_H};
+    }
+    return true;
+}
 
-static void bannerMetaPaint() {
+static void companionMetaPaint() {
+    const CompanionGeo& g = bGeo;
     TFT_eSPI& tft = uiTft();
-    const int x = B_X + avatar::W * bScale() + 8, w = tft.width() - x - 6;
-    const int y = B_Y + 2;
-    tft.fillRect(x, B_Y, w, bannerMeterY() - B_Y - 2, uiInk(Ink::Bg));   // a shorter word leaves nothing
+    tft.fillRect(g.meta.x, g.meta.y, g.meta.w, g.meta.h, uiInk(Ink::Bg));   // a shorter word leaves nothing
+    const bool centred = g.kind == ul::Companion::Rail;
     uiFont(UiFont::Body);
     const std::string& prof = settingsProfile();
-    uiText(uiFit(prof.empty() ? "chirp" : prof.c_str(), w), x, y, Ink::Accent, Ink::Bg);
+    const String name = uiFit(prof.empty() ? "chirp" : prof.c_str(), g.meta.w);
+    uiText(name, centred ? g.meta.x + (g.meta.w - uiTextWidth(name)) / 2 : g.meta.x, g.meta.y,
+           Ink::Accent, Ink::Bg);
     uiFont(UiFont::Small);
-    uiText(characterStateName(), x, y + uiLineHeight() + 2, Ink::Muted, Ink::Bg);
+    const String state = uiFit(characterStateName(), g.meta.w);
+    uiText(state, centred ? g.meta.x + (g.meta.w - uiTextWidth(state)) / 2 : g.meta.x,
+           g.meta.y + uiLineHeight() + 2, Ink::Muted, Ink::Bg);
+    uiFont(UiFont::Body);
     bMeterW = -1;                               // the meter repaints with its band
 }
 
-static void bannerMeterPaint(uint8_t level, Ink ink) {
-    TFT_eSPI& tft = uiTft();
-    const int x = B_X + avatar::W * bScale() + 8, w = tft.width() - x - 6;
-    const int y = bannerMeterY(), h = 8;
-    const int fill = (w - 4) * level / 255;
+static void companionMeterPaint(uint8_t level, Ink ink) {
+    const ul::Rect& m = bGeo.meter;
+    const int fill = (m.w - 4) * level / 255;
     if (fill == bMeterW) return;
     bMeterW = fill;
-    tft.fillRect(x, y, w, h, uiInk(Ink::Bg));
-    tft.drawRect(x, y, w, h, uiInk(Ink::Muted));
-    if (fill > 0) tft.fillRect(x + 2, y + 2, fill, h - 4, uiInk(ink));
+    TFT_eSPI& tft = uiTft();
+    tft.fillRect(m.x, m.y, m.w, m.h, uiInk(Ink::Bg));
+    tft.drawRect(m.x, m.y, m.w, m.h, uiInk(Ink::Muted));
+    if (fill > 0) tft.fillRect(m.x + 2, m.y + 2, fill, m.h - 4, uiInk(ink));
 }
 
 void characterBannerPaint() {
-    if (!ready) return;                         // no avatar built yet
+    if (!ready || !companionGeo(bGeo)) return;  // no avatar yet, or no companion here
     updatePalette();
     TFT_eSPI& tft = uiTft();
-    const int h = uiBannerHeight();
+    const ul::Rect& a = bGeo.area;
     const uint32_t now = millis();
     const avatar::State s = wantedState(now);
     if (s != curState) {
         curState = s;
         stateSince = now;
     }
-    tft.fillRect(0, 0, tft.width(), h, uiInk(Ink::Bg));
-    drawFrameInto(bShown, bValid, B_X, B_Y, bScale(), now, true);
-    bannerMetaPaint();
-    tft.drawFastHLine(0, h - 1, tft.width(), uiInk(Ink::Faint));
+    tft.fillRect(a.x, a.y, a.w, a.h, uiInk(Ink::Bg));
+    drawFrameInto(bShown, bValid, bGeo.avX, bGeo.avY, bGeo.scale, now, true);
+    companionMetaPaint();
+    if (bGeo.kind == ul::Companion::Top)
+        tft.drawFastHLine(a.x, a.bottom() - 1, a.w, uiInk(Ink::Faint));
+    else
+        tft.drawFastVLine(a.right() - 1, a.y, a.h, uiInk(Ink::Faint));
     bLastTick = now;
 }
 
 static void characterBannerTick() {
-    if (!ready || menuOpen()) return;
+    if (!ready || menuOpen() || bGeo.kind == ul::Companion::None) return;
     const uint32_t now = millis();
     const bool trickle = powerAnimSlow() && (curState == avatar::Idle || curState == avatar::Sleep);
     if (now - bLastTick < (trickle ? (uint32_t)ANIM_SLOW_FRAME_MS : avatar::FRAME_MS)) return;
@@ -523,10 +557,10 @@ static void characterBannerTick() {
     if (s != curState) {
         curState = s;
         stateSince = now;
-        bannerMetaPaint();                      // the state word follows the turn
+        companionMetaPaint();                   // the state word follows the turn
     }
-    const uint8_t lvl = drawFrameInto(bShown, bValid, B_X, B_Y, bScale(), now, false);
-    bannerMeterPaint(lvl, curState == avatar::Speaking ? Ink::Ok : Ink::Listen);
+    const uint8_t lvl = drawFrameInto(bShown, bValid, bGeo.avX, bGeo.avY, bGeo.scale, now, false);
+    companionMeterPaint(lvl, curState == avatar::Speaking ? Ink::Ok : Ink::Listen);
 }
 #endif
 
@@ -541,7 +575,7 @@ static bool agentThinking() {
     return transcriptPending(pend) && pend.an == 0 && cardMode != CardWave && !turnTranscribing();
 }
 
-static const char* HINT = "Hold the encoder to talk\nDouble-tap for voice mode";
+static const char* HINT = CHIRP_HINT1 "\n" CHIRP_HINT2;   // the board's own words (board.h)
 static const char* EXIT_HINT = "Double-tap to exit";   // the caption under the waiting bubble
 
 // The text a bubble shows, folded for the font.
@@ -808,7 +842,13 @@ static void setCardMode(avatar::State s) {
 void characterPaint() {
     if (!characterOn()) return;
     TFT_eSPI& tft = uiTft();
-    tft.fillRect(0, 0, colX(), uiStripTop(), uiInk(Ink::Bg));
+    // Everything the bubble column does not cover (it repaints itself whole):
+    // above it, then left and right of it, down to the strip when it is up.
+    const int bottom = uiStripTop();
+    tft.fillRect(0, 0, tft.width(), colY(), uiInk(Ink::Bg));
+    tft.fillRect(0, colY(), colX(), bottom - colY(), uiInk(Ink::Bg));
+    tft.fillRect(colX() + colW(), colY(), tft.width() - colX() - colW(), bottom - colY(),
+                 uiInk(Ink::Bg));
     updatePalette();
     const uint32_t now = millis();
     const avatar::State s = wantedState(now);
@@ -1055,7 +1095,7 @@ void characterPreviewPosition(int& sel, int& count) {
 
 static void previewText(int top, int bottom) {
     TFT_eSPI& tft = uiTft();
-    const int x = AV_TEXT_X, w = tft.width() - x - 4;
+    const int x = ui_layout::previewLayout(tft.width(), bottom - top).textX, w = tft.width() - x - 4;
     tft.fillRect(x - 6, top, w + 6, bottom - top, uiInk(Ink::Bg));
     // Name in the Title face, then the position and the palette name in Body:
     // the block is centred, its heights come from the font.
@@ -1082,16 +1122,17 @@ static void previewFrame(uint32_t now, bool all) {
     const avatar::Ctx ctx = {now, now - previewSince, 0, false};
     figure.render(avatar::Idle, ctx, next);
     avatar::Rect r;
-    const int oy = previewTop + (previewBottom - previewTop - avatar::H * AV_SCALE) / 2;
+    const ui_layout::Preview pv = ui_layout::previewLayout(uiTft().width(), previewBottom - previewTop);
+    const int oy = previewTop + (previewBottom - previewTop - avatar::H * pv.scale) / 2;
     if (all || !shownValid) {
         r.x0 = 0;
         r.y0 = 0;
         r.x1 = avatar::W;
         r.y1 = avatar::H;
-        pushSprite(r, next, AV_X, oy, AV_SCALE);
+        pushSprite(r, next, pv.avX, oy, pv.scale);
         shownValid = true;
     } else if (avatar::dirtyRect(shown, next, r)) {
-        pushSprite(r, next, AV_X, oy, AV_SCALE);
+        pushSprite(r, next, pv.avX, oy, pv.scale);
     }
     memcpy(shown, next, sizeof shown);
 }

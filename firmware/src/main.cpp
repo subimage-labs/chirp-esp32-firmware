@@ -337,7 +337,7 @@ void setup() {
     } else {
         Serial.println("[WiFi] join failed, retrying in background");
         selfTestRun();                             // logs the result for host/pair.py
-        uiMsg("WiFi failed; side key 3x = Setup", Ink::Err);
+        uiMsg("WiFi failed; " CHIRP_SIDE " 3x = Setup", Ink::Err);
         speechErrorTone();
     }
     transcriptRender();                            // boot into the READY screen

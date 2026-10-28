@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "avatar.h"
+#include "board.h"
 #include "character.h"
 #include "fontpick.h"
 #include "hermes.h"
@@ -186,7 +187,7 @@ static void listScrollbar(TFT_eSPI& tft, int top, int bottom, int first, int sho
 }
 
 static void chatsHint() {
-    uiMsg("Wheel=select  Encoder=open", Ink::Muted);
+    uiMsg(CHIRP_TURN "=select  " CHIRP_PRESS "=open", Ink::Muted);
 }
 
 // One row per theme. The selection is the theme in use: turning the wheel
@@ -204,7 +205,7 @@ static void renderThemes(TFT_eSPI& tft, int top, int bottom) {
          f++, y += uiRowHeight(), shown++)
         drawRow(tft, THEMES[f].name, f == themeSel, y);
     listScrollbar(tft, listTop - 2, listTop - 2 + shown * uiRowHeight(), themeTop, shown, THEME_COUNT);
-    uiMsg(uiThemeLight() ? "Wheel=theme  Encoder=dark" : "Wheel=theme  Encoder=light",
+    uiMsg(uiThemeLight() ? CHIRP_TURN "=theme  " CHIRP_PRESS "=dark" : CHIRP_TURN "=theme  " CHIRP_PRESS "=light",
           Ink::Muted);
 }
 
@@ -213,7 +214,7 @@ static void renderThemes(TFT_eSPI& tft, int top, int bottom) {
 // as it lands on it; the encoder cycles the size S -> M -> L.
 static void textHint() {
     char hint[40];
-    snprintf(hint, sizeof hint, "Wheel=font  Encoder=size %c",
+    snprintf(hint, sizeof hint, CHIRP_TURN "=font  " CHIRP_PRESS "=size %c",
              fontSizeLetter(fontSizeNext(uiFontSize())));
     uiMsg(hint, Ink::Muted);
 }
@@ -257,7 +258,7 @@ static void activateText() {
 // encoder keeps the shown one.
 // Leaving without keeping restores the kept character (character.h).
 static void chirperHint() {
-    uiMsg("Wheel=browse  Encoder=keep", Ink::Muted);
+    uiMsg(CHIRP_TURN "=browse  " CHIRP_PRESS "=keep", Ink::Muted);
 }
 
 static void renderChirper(TFT_eSPI& tft, int top, int bottom) {
@@ -334,21 +335,21 @@ static void setupHint() {
     const setupview::Layout l = setupLayout();
     switch (l.kind(setupSel)) {
     case setupview::Kind::Change:
-        uiMsg("Encoder=restart into phone setup", Ink::Muted);
+        uiMsg(CHIRP_PRESS "=restart into phone setup", Ink::Muted);
         break;
     case setupview::Kind::Restart:
-        uiMsg("Encoder=restart (keeps the chat)", Ink::Muted);
+        uiMsg(CHIRP_PRESS "=restart (keeps the chat)", Ink::Muted);
         break;
     case setupview::Kind::Screen:
-        uiMsg(characterOn() ? "Encoder=show the chat" : "Encoder=show the character", Ink::Muted);
+        uiMsg(characterOn() ? CHIRP_PRESS "=show the chat" : CHIRP_PRESS "=show the character", Ink::Muted);
         break;
     case setupview::Kind::Agent:
         if (s.agents.size() == 1) uiMsg("The only agent on this device", Ink::Muted);
         else if (setupSel == (int)s.active) uiMsg("Agent in use", Ink::Muted);
-        else uiMsg("Encoder=switch agent (restarts)", Ink::Muted);
+        else uiMsg(CHIRP_PRESS "=switch agent (restarts)", Ink::Muted);
         break;
     default:
-        uiMsg("Wheel=scroll", Ink::Muted);
+        uiMsg(CHIRP_TURN "=scroll", Ink::Muted);
         break;
     }
 }

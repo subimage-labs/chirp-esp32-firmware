@@ -1,12 +1,15 @@
 # Agent Rules — hermes-chirp-cc1101
 
-T-Embed CC1101 Plus device + host-side voice bridge for the hermes agent.
+ESP32-S3 voice devices (LILYGO T-Embed CC1101 Plus, LILYGO T-Deck) + host-side voice bridge for the hermes agent.
 Two agents may work this repo concurrently: split by lane, announce cross-lane
 edits via the other tmux pane.
 
 ## Layout
 
 - `firmware/` — ESP32-S3 firmware (PlatformIO, Arduino). PTT voice device.
+  One build per board (`-e t-embed-cc1101`, `-e t-deck`); `include/board.h`
+  picks `board_<name>.h` (pins, panel, controls, the hints' control words),
+  and nothing above it names a board.
   `firmware/tools/` has the font generator, `avatar_preview.py`, which draws
   character sheets and GIFs from `avatar.h` itself (`firmware/test/host/avatar_preview.cpp`),
   `logo_preview.py`, the chirp! logo on all 12 theme backgrounds from `logo.h`
@@ -104,6 +107,12 @@ edits via the other tmux pane.
    header layout) is in `fontpick.h` / `textfold.h`; `font_test.cpp` checks every
    family x size. Adding a family: edit `FAMILIES` and `font-sources.txt`, run the
    generator, commit the data and license.
+9. **Layouts are responsive.** Screen geometry comes from pure layout
+   headers: `portal_layout.h` (setup screen) and `ui_layout.h` (chat,
+   companion, character view, Chirper preview), host-tested on every common
+   ESP32 panel size and font cut (`portal_layout_test.cpp`,
+   `ui_layout_test.cpp`). Drawing code places nothing at fixed pixel
+   positions; a new panel size goes into the tests' matrix first.
 
 ## Flashing the device
 
@@ -112,17 +121,30 @@ Hard-won procedure — every step below exists because skipping it broke a flash
 1. **Free the port.** `pkill -f serial-watch.py` (and any other reader of
    `/dev/ttyACM*`). An open handle aborts esptool mid-write ("serial noise",
    `interrupted`) and can strand the chip in ROM download mode.
-2. **Build, check, then upload — separate foreground commands.**
-   `pio run -d firmware` → confirm `SUCCESS` → only then
-   `pio run -d firmware -t upload --upload-port /dev/ttyACM1` → confirm
-   `Hash of data verified` + `SUCCESS`. Never `&&`-chain build→upload→commit
-   behind a trailing `&`/`disown`: a failed build still uploaded the stale
-   binary, and backgrounding swallowed the commit step silently.
+2. **Build, check, then upload — separate foreground commands, one board.**
+   `pio run -d firmware -e t-embed-cc1101` → confirm `SUCCESS` → only then
+   `pio run -d firmware -e t-embed-cc1101 -t upload --upload-port /dev/ttyACM1`
+   → confirm `Hash of data verified` + `SUCCESS`. Always name the env: without
+   `-e`, `-t upload` uploads every board's image in turn. Never `&&`-chain
+   build→upload→commit behind a trailing `&`/`disown`: a failed build still
+   uploaded the stale binary, and backgrounding swallowed the commit step
+   silently. A `PLATFORMIO_BUILD_FLAGS` change rebuilds `.pio/build` from
+   scratch: build the bench image last and stage it before the next build.
 3. **Port name drifts.** The S3 re-enumerates after resets (ACM0 → ACM1). If
    the upload can't open the port: `ls /dev/ttyACM*`.
 4. **Stuck in download mode, or silent after an upload** (`waiting for
    download` on serial, or no boot lines in the log after a `pio` upload):
    `python -m esptool --chip esp32s3 --port /dev/ttyACM1 --after hard_reset flash_id`.
+   **T-Deck: flash over USB-JTAG** — its ROM serial loader does not answer
+   esptool or Web Serial. OpenOCD (Espressif's `openocd-esp32`,
+   `interface/esp_usb_jtag.cfg` + `target/esp32s3.cfg` with `set ESP32S3 1`):
+   `init; reset halt; program_esp <bootloader.bin> 0x0 verify;
+   program_esp <partitions.bin> 0x8000 verify; program_esp <boot_app0.bin>
+   0xe000 verify; program_esp <firmware.bin> 0x10000 verify; reset run;
+   shutdown`. It needs a udev rule giving the user `303a:1001` with
+   `ENV{ID_MM_DEVICE_IGNORE}="1"` (ModemManager otherwise grabs the port).
+   With two boards plugged in, pin the adapter (`adapter usb location
+   <bus>-<port>`) so the other board is never touched.
 5. **Restart the watcher detached**, then confirm boot:
    `setsid nohup host/serial-watch.py >/dev/null 2>&1 </dev/null &` →
    `/tmp/chirp-serial.log` shows `PSRAM enabled`, `[WiFi] <device-ip>` and

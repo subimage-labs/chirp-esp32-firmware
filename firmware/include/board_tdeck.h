@@ -61,6 +61,11 @@
 // Keys that may wake the chip from deep sleep (RTC-capable, active low).
 #define CHIRP_WAKE_KEYS {ENCODER_BTN_PIN}
 
+// The two controls' names in the hints ("Ball=select  Click=open").
+#define CHIRP_TURN "Ball"
+#define CHIRP_PRESS "Click"
+#define CHIRP_SIDE "sym key"      // stands in for the side key
+
 // The READY screen's hint lines.
 #define CHIRP_HINT1 "Hold space to talk"
 #define CHIRP_HINT2 "Type, enter to send"
