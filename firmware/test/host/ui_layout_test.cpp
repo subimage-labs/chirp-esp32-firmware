@@ -141,6 +141,27 @@ static void testPreview() {
     CHECK(embed.scale == 3 && embed.avX == 18 && embed.textX == 132, "320 wide: 3x, text at 132");
     CHECK(previewLayout(320, 90).scale == 2, "a card shorter than 96 px: 2x, not over the header");
     CHECK(previewLayout(240, 160).scale == 2, "240 wide: 2x keeps the name its room");
+    CHECK(previewLayout(320, 50).scale == 1, "a card shorter than 64 px: 1x");
+    const Preview none = previewLayout(320, 20);
+    CHECK(none.scale == 0 && none.textX == PREVIEW_X, "no room even at 1x: no avatar, text at the left");
+    const UiMetrics m = uiMetricsFor(FONT_FAMILIES[0].size[FONT_SIZE_M].box);
+    CHECK(previewLayout(320, previewCardH(170, CONTENT_Y, m.header, m.status)).scale == 3,
+          "the T-Embed at Atkinson M keeps its 3x preview");
+}
+
+// The preview on every panel at every font cut, in its real card: the avatar
+// never taller than the card (it would cover the tab header), the text
+// never off the right edge.
+static void checkPreview(const Panel& p) {
+    for (size_t f = 0; f < FONT_FAMILY_COUNT; f++)
+        for (int s = 0; s < FONT_SIZE_COUNT; s++) {
+            const UiMetrics m = uiMetricsFor(FONT_FAMILIES[f].size[s].box);
+            const int card = previewCardH(p.h, CONTENT_Y, m.header, m.status);
+            const Preview pv = previewLayout(p.w, card);
+            CHECK(AV * pv.scale <= card, "%s %dx%d %s %c: %d px avatar in a %d px card", p.boards,
+                  p.w, p.h, FONT_FAMILIES[f].name, fontSizeLetter((uint8_t)s), AV * pv.scale, card);
+            CHECK(pv.textX < p.w - 4, "%s %dx%d: preview text starts off screen", p.boards, p.w, p.h);
+        }
 }
 
 int main() {
@@ -150,6 +171,7 @@ int main() {
     for (const Panel& p : PANELS) {
         checkPanel(p);
         checkScene(p);
+        checkPreview(p);
     }
     if (failures) {
         printf("ui_layout: %d check(s) failed\n", failures);

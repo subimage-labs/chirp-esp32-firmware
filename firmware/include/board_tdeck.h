@@ -36,7 +36,11 @@
 #define SPK_DIN_PIN      6
 
 // --- Controls ---
-#define PTT_BTN_PIN      -1      // no side key: the keyboard's sym key stands in
+// The trackball does every button's job (the keyboard only types: it has no
+// release codes, so no key can be held): click = the encoder key (hold to
+// talk, double-tap = voice mode), roll up/down = the wheel, roll right =
+// side-key taps (balltap.h). There is no side-key hold (volume mode).
+#define PTT_BTN_PIN      -1      // no side key: the trackball's roll right stands in
 #define ENCODER_A_PIN    -1      // no wheel: the trackball feeds the same events
 #define ENCODER_B_PIN    -1
 #define ENCODER_BTN_PIN  0       // trackball click (shares GPIO0/BOOT with the mic)
@@ -47,9 +51,8 @@
 #define TRACKBALL_LEFT_PIN  1
 #define TRACKBALL_RIGHT_PIN 2
 
-// --- Keyboard (T-Keyboard firmware on the ESP32-C3, I2C) ---
+// --- Keyboard (LILYGO's keyboard firmware on the ESP32-C3, I2C; polled) ---
 #define KBD_I2C_ADDR     0x55
-#define KBD_INT_PIN      46
 
 // --- Board ---
 #define BOARD_PWR_EN_PIN 10     // peripheral power rail, HIGH = on
@@ -64,8 +67,8 @@
 // The two controls' names in the hints ("Ball=select  Click=open").
 #define CHIRP_TURN "Ball"
 #define CHIRP_PRESS "Click"
-#define CHIRP_SIDE "sym key"      // stands in for the side key
+#define CHIRP_SIDE "roll right"   // the side key's taps (balltap.h)
 
 // The READY screen's hint lines.
-#define CHIRP_HINT1 "Hold space to talk"
+#define CHIRP_HINT1 "Hold the ball to talk"
 #define CHIRP_HINT2 "Type, enter to send"

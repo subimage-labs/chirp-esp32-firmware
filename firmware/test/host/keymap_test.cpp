@@ -1,4 +1,4 @@
-// keymap_test.cpp — the T-Keyboard's scancode classification and the compose
+// keymap_test.cpp — the T-Deck keyboard's byte classification and the compose
 // line's editor (keymap.h). Pure, host-side.
 #include <cstdio>
 #include <cstring>
@@ -26,11 +26,9 @@ static void testClassification() {
     ok(keyAct(0x08) == KeyAct::Backspace, "0x08 backspaces");
     ok(keyAct('\r') == KeyAct::Enter, "CR enters");
     ok(keyAct('\n') == KeyAct::Enter, "LF enters");
-    ok(keyAct(' ') == KeyAct::Space, "space is the talk key");
-    ok(keyAct(KBD_CODE_SYM) == KeyAct::SymDown, "sym press");
-    ok(keyAct(KBD_CODE_SYM + 1) == KeyAct::SymUp, "sym release");
-    ok(keyAct(KBD_CODE_SHIFT) == KeyAct::Shift, "shift classifies");
-    ok(keyAct(KBD_CODE_ALT) == KeyAct::Alt, "alt classifies");
+    ok(keyAct(' ') == KeyAct::Print, "space types a space");
+    ok(keyAct(0x0C) == KeyAct::Unknown, "alt+C is Unknown (logged, not typed)");
+    ok(keyAct('$' - 32) == KeyAct::Unknown, "shift+$ is a control code, not typed");
 }
 
 static void testCompose() {

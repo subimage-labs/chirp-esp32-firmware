@@ -5,9 +5,9 @@
 
 #include <atomic>
 
+#include "balltap.h"
 #include "config.h"
 #include "gesture.h"
-#include "keyboard.h"
 #include "keyring.h"
 #include "trackball.h"
 #include "wheel.h"
@@ -35,9 +35,6 @@ static bool encRaw() {
 #ifdef BENCH_CMDS
     if (simEnc.load()) return true;
 #endif
-#if CHIRP_HAS_KEYBOARD
-    if (keyboardEncDown()) return true;      // space, held: the encoder key's role
-#endif
 #if ENCODER_BTN_PIN >= 0
     return digitalRead(ENCODER_BTN_PIN) == LOW;
 #else
@@ -49,9 +46,6 @@ static bool sideRaw() {
 #ifdef BENCH_CMDS
     if (simSide.load()) return true;
 #endif
-#if CHIRP_HAS_KEYBOARD
-    if (keyboardSideDown()) return true;     // the ?123 key: the side key's role
-#endif
 #if PTT_BTN_PIN >= 0
     return digitalRead(PTT_BTN_PIN) == LOW;
 #else
@@ -62,9 +56,12 @@ static bool sideRaw() {
 static void sampleKeys(void*) { keyRing.sample(millis(), encRaw(), sideRaw()); }
 
 // The wheel's detent source: the encoder on wheel boards, the trackball's
-// vertical axis on ball boards (roll up = one clockwise click).
+// vertical axis on ball boards (roll up = one clockwise click). Ball boards
+// have no side key: a flick right is its tap (balltap.h), a flick left is
+// nothing yet.
 #if CHIRP_HAS_TRACKBALL
 static int32_t ballNet = 0;                  // detents not yet turned into events
+static BallTap ballTap;
 static int32_t ballPosition() {
     ballNet += trackballUp() - trackballDown();
     return ballNet;
@@ -95,7 +92,11 @@ static void update() {
     keyReplay<GestureOut>(keyRing, gestures, now, keyLast, [](const GestureOut& out) {
         for (int i = 0; i < out.n; i++) push(out.ev[i]);
     });
-
+#if CHIRP_HAS_TRACKBALL
+    trackballLeft();                         // drained: unused
+    if (ballTap.feed(now, trackballRight()))  // a side-key tap: down and up, short, no hold
+        push({InputType::SideRelease, 0, 0, 50, false, keyLast.enc});
+#endif
     const int32_t pos = wheelPosition();
     if (pos != wheelConsumed) {
         const int32_t clicks = pos - wheelConsumed;

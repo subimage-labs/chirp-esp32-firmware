@@ -140,20 +140,26 @@ inline Scene sceneLayout(int w, int h) {
 }
 
 // ---------------------------------------------------------------- the Chirper tab's preview
-// The avatar left in its card, the name and look to its right: 3x where the
-// card is tall enough and the text keeps its room, else 2x.
+// The avatar left in its card, the name and look to its right: the largest
+// of 3x, 2x, 1x that fits the card's height and leaves the text its room.
+// When none does, no avatar (scale 0) and the text starts at the left.
 const int PREVIEW_X = 18, PREVIEW_GAP = 18, PREVIEW_TEXT_MIN_W = 110;
 
 struct Preview {
-    int scale, avX, textX;
+    int scale, avX, textX;    // scale 0: no avatar
 };
 
 inline Preview previewLayout(int w, int cardH) {
-    const int s = largestScale(2, 3, [&](int s) {
+    const int s = largestScale(1, 3, [&](int s) {
         return AV * s <= cardH && w - (PREVIEW_X + AV * s + PREVIEW_GAP) - 4 >= PREVIEW_TEXT_MIN_W;
     });
-    const int scale = s ? s : 2;
-    return {scale, PREVIEW_X, PREVIEW_X + AV * scale + PREVIEW_GAP};
+    return {s, PREVIEW_X, s ? PREVIEW_X + AV * s + PREVIEW_GAP : PREVIEW_X};
+}
+
+// The preview card's height (menu.cpp: under the tab header, above the
+// status strip) on an h-tall panel; content starts at contentTop.
+inline int previewCardH(int h, int contentTop, int header, int status) {
+    return (h - status) - (contentTop + header + 2);
 }
 
 }  // namespace ui_layout

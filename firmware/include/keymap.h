@@ -1,44 +1,29 @@
-// keymap.h — the T-Keyboard's I2C scancodes classified into app actions.
-// Pure (no Arduino), host-tested; keyboard.cpp feeds it every byte the ESP32-C3
-// coprocessor queues and routes the result.
+// keymap.h — the T-Deck keyboard's I2C bytes classified into app actions.
+// Pure (no Arduino), host-tested; keyboard.cpp feeds it every byte it reads.
 //
-// The stock T-Keyboard firmware sends ASCII for printable keys, 0x08 for
-// backspace, 0x0D for enter. Modifier keys (sym, shift, alt) arrive as
-// codes >= 0x80 whose exact values the vendor firmware does not document;
-// the table below carries the ones observed on the device (bench `keys`
-// prints every raw code it sees, so an unlisted modifier shows up as
-// KeyAct::Unknown and can be added here).
+// LILYGO's keyboard firmware (ESP32-C3, examples/Keyboard_ESP32C3) answers
+// each read with one byte: the last key pressed, or 0x00. It sends ASCII for
+// printable keys (space included), 0x08 for backspace, 0x0D for enter and
+// 0x0C for alt+C. Sym and shift are applied on the C3 (symbols, upper case)
+// and send nothing on their own; there are no release codes and no repeat,
+// so no key can be held. Shift subtracts 32 from any key, so shift+space
+// reads as 0x00 and shift+$ as a control code (Unknown).
 #pragma once
 
 #include <stdint.h>
 
 enum class KeyAct : uint8_t {
-    None,        // 0x00: no key queued (the C3's idle byte)
-    Print,       // a printable ASCII character
+    None,        // 0x00: no key pressed since the last read
+    Print,       // a printable ASCII character, space included
     Backspace,
     Enter,
-    Space,       // held = push-to-talk (the encoder key's role)
-    SymDown,     // the ?123 key's press (the side key's role)
-    SymUp,
-    Shift,       // modifiers the app currently ignores
-    Alt,
     Unknown,
 };
 
-// Observed vendor modifier codes (bench `keys` on the device).
-static const uint8_t KBD_CODE_SYM = 0xBB;    // ?123 key
-static const uint8_t KBD_CODE_SHIFT = 0xB1;  // ⇧ key
-static const uint8_t KBD_CODE_ALT = 0xB2;    // ALT (alt+B toggles key backlight)
-
 inline KeyAct keyAct(uint8_t code) {
-    if (code == 0x00 || code == 0xFF) return KeyAct::None;
-    if (code == KBD_CODE_SYM) return KeyAct::SymDown;
-    if (code == KBD_CODE_SYM + 1) return KeyAct::SymUp;
-    if (code == KBD_CODE_SHIFT) return KeyAct::Shift;
-    if (code == KBD_CODE_ALT) return KeyAct::Alt;
+    if (code == 0x00 || code == 0xFF) return KeyAct::None;   // 0xFF: an idle bus reads high
     if (code == 0x08) return KeyAct::Backspace;
     if (code == '\r' || code == '\n') return KeyAct::Enter;
-    if (code == ' ') return KeyAct::Space;
     if (code >= 0x20 && code < 0x7F) return KeyAct::Print;
     return KeyAct::Unknown;
 }

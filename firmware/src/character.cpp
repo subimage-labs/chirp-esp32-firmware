@@ -1123,6 +1123,7 @@ static void previewFrame(uint32_t now, bool all) {
     figure.render(avatar::Idle, ctx, next);
     avatar::Rect r;
     const ui_layout::Preview pv = ui_layout::previewLayout(uiTft().width(), previewBottom - previewTop);
+    if (!pv.scale) return;                        // no room for an avatar: the text alone
     const int oy = previewTop + (previewBottom - previewTop - avatar::H * pv.scale) / 2;
     if (all || !shownValid) {
         r.x0 = 0;

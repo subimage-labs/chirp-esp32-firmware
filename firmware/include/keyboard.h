@@ -1,23 +1,21 @@
-// keyboard.h — the T-Keyboard (an ESP32-C3 coprocessor on I2C, address
-// 0x55). It queues one ASCII/modified byte per keypress; the INT pin goes
-// low while a queue exists. The loop polls it (I2C from the 5 ms key
-// sampler would hold the timer task for the whole transaction) and routes
-// each byte through keymap.h.
-//
-// Two keys hold the roles the board has no pins for, and their levels are
-// sampled by input.cpp's key sampler like physical keys:
-//   space, held  — the encoder key (push-to-talk; double-tap = voice mode)
-//   ?123 (sym)   — the side key (tap = menu, hold = volume)
+// keyboard.h — the T-Deck keyboard (an ESP32-C3 on I2C, address 0x55). It
+// holds one byte, the last key pressed, until read (keymap.h has what it
+// sends). Nothing signals a waiting key, so the loop polls it every
+// KBD_POLL_MS (I2C from the 5 ms key sampler would hold the timer task for
+// the whole transaction) and routes each byte through keymap.h. Keys only
+// type: they have no release codes, so none can stand in for a held button
+// (the trackball does: click = the encoder key, roll right = side taps).
+// Loop task only.
 #pragma once
 
 #include <stdint.h>
 
 enum class KbdEv : uint8_t {
     None,
-    Char,        // a printable character (c)
+    Char,        // a printable character (c), space included
     Backspace,
     Enter,
-    Raw,         // an unclassified code (raw): bench `keys` prints these
+    Raw,         // an unclassified code (raw), logged
 };
 
 struct KbdEvent {
@@ -30,12 +28,8 @@ bool keyboardBegin();               // Wire on the board's I2C pins; false: no k
 bool keyboardOnline();
 void keyboardSetBacklight(uint8_t v);  // 0..255
 
-// Loop task: drains the queue, one event per call (false when none).
+// Loop task: at most one event per KBD_POLL_MS (false when none or not due).
 bool keyboardPoll(KbdEvent& ev);
-
-// Key levels the gesture decoder samples (input.cpp); set by keyboardPoll.
-bool keyboardEncDown();             // space held
-bool keyboardSideDown();            // sym held
 
 #ifdef BENCH_CMDS
 void keyboardEcho(bool on);         // print every raw code ([Kbd] raw XX)
