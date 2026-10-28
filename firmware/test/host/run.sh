@@ -31,8 +31,14 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/route_test.cpp" -o "$out/route_test"
 "$out/route_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/keymap_test.cpp" -o "$out/keymap_test"
+"$out/keymap_test"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/setup_form_test.cpp" -o "$out/setup_form_test"
 "$out/setup_form_test"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/portal_layout_test.cpp" -o "$out/portal_layout_test"
+"$out/portal_layout_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/selftest_policy_test.cpp" -o "$out/selftest_policy_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \

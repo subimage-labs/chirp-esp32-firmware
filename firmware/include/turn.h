@@ -24,7 +24,7 @@ bool turnTranscribing();        // loop: THINKING and the worker is still in STT
 // task and the loop log against it (an atomic, any context). host/latency.py
 // reads these lines.
 void turnLatMark(const char* event);
+void turnAskText(const String& q);   // a typed turn: the question is q, STT skipped
 #ifdef BENCH_CMDS
-void turnAskText(const String& q);   // bench: a turn from text, STT skipped
 void turnSpeakText(const String& a); // bench: a turn whose answer is a, Hermes skipped
 #endif

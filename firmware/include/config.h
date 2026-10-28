@@ -1,7 +1,9 @@
 #pragma once
-// Build-time constants: pins, timing, limits. Device settings (WiFi, Hermes
-// host and key, audio shim) are entered on the device and live in NVS —
-// settings.h.
+// config.h — build-time app constants: timing, limits, policy. Pins and
+// per-board hardware live in board.h (one header per target, picked by the
+// platformio.ini environment). Device settings (WiFi, Hermes host and key,
+// audio shim) are entered on the device and live in NVS — settings.h.
+#include "board.h"
 
 #define TTS_VOICE       "af_sky"   // ignored by shim: local Paradee TTS is single-voice af_heart
 
@@ -25,17 +27,13 @@
 #define CHUNK_QUEUE          4
 #define WIFI_RETRY_MS        5000UL
 
-// --- Microphone (PDM via I2S0 RX) ---
-#define MIC_CLK_PIN      39
-#define MIC_DATA_PIN     42
-#define MIC_PORT         I2S_NUM_0
+// --- Microphone (I2S0 RX; kind and pins per board) ---
 #define SAMPLE_RATE      16000
 #define REC_MAX_SECS     30
 #define REC_MAX_PCM      (SAMPLE_RATE * 2 * REC_MAX_SECS)   // 960000 bytes
 #define MIN_TURN_PCM     (SAMPLE_RATE)                      // 0.5s of PCM
 #define MIC_DMA_BUFS     8
 #define MIC_DMA_LEN      512
-#define MIC_GAIN         6      // software PDM boost (~+15.6dB); raise if far, lower if clipped
 #define READ_CHUNK       2048
 #define SILENCE_PEAK     1200   // 16-bit peak below this across the clip = silence
 
@@ -54,32 +52,17 @@
 #define VOICE_SETTLE_MS     400     // mute after playback before listening
 #define VOICE_IDLE_EXIT_MS  180000UL  // leave voice mode after this much quiet
 
-// --- Speaker (I2S1 TX, ESP32-audioI2S) ---
-#define SPK_BCLK_PIN     46
-#define SPK_LRCLK_PIN    40
-#define SPK_DIN_PIN      7
+// --- Speaker (I2S1 TX, ESP32-audioI2S; pins per board) ---
 #define DEFAULT_VOLUME   21     // 0..21 (21 = unity); decoder adds fixed +6 dB w/ limiter
 #define MAX_VOLUME       21
 // phase 2: loudness target adjustable in a prefs screen (encoder center press)
 
-// --- Controls ---
-#define PTT_BTN_PIN      6      // side key: tap=conversations menu, hold=volume
-#define ENCODER_A_PIN    4
-#define ENCODER_B_PIN    5
-#define ENCODER_BTN_PIN  0      // encoder: hold=push-to-talk, double-tap=voice mode, +side tap=view
+// --- Controls (pins per board; timing shared) ---
 #define DEBOUNCE_MS      30     // key must stay up this long to count as released
 #define BTN_DBL_MS       400    // double-tap window
 #define BTN_TAP_MS       300    // encoder press shorter than this: never sent as speech
 #define RECORD_SHOW_MS   500    // a capture shows Listening only once this old (push-to-talk, voice)
 #define BTN_HOLD_MS      500    // side-key hold enters volume mode
-
-// --- Board ---
-#define BOARD_PWR_EN_PIN 15     // peripheral power rail, HIGH = on
-#define RADIO_CS_PIN     12     // CC1101 on the panel's SPI bus: held high (never selected)
-#define SD_CS_PIN        13     // microSD slot on the same bus: held high
-#define CHARGER_I2C_SDA  8      // BQ25896 charger: reports USB power present
-#define CHARGER_I2C_SCL  18
-#define CHARGER_I2C_ADDR 0x6B
 
 // --- Power (battery only; USB keeps the screen on, never sleeps) ---
 // Overridable at build time (-D) for short-timer bench tests.
@@ -87,13 +70,13 @@
 #define SCREEN_DIM_MS      60000UL    // idle → backlight dims
 #endif
 #ifndef SCREEN_OFF_MS
-#define SCREEN_OFF_MS      180000UL   // idle → backlight off (next input only wakes)
+#define SCREEN_OFF_MS     180000UL   // idle → backlight off (next input only wakes)
 #endif
 #ifndef LIGHT_SLEEP_MS
 #define LIGHT_SLEEP_MS     600000UL   // idle → light sleep (state kept); a key wakes
 #endif
 #ifndef DEEP_SLEEP_MS
-#define DEEP_SLEEP_MS      7200000UL  // idle → deep sleep (reboot on wake)
+#define DEEP_SLEEP_MS     7200000UL  // idle → deep sleep (reboot on wake)
 #endif
 #define BACKLIGHT_DIM_DUTY 40         // of 255 (LEDC PWM on TFT_BL)
 #ifndef ANIM_SLOW_MS

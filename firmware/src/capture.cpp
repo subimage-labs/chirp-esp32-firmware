@@ -7,6 +7,11 @@
 
 #include "config.h"
 #include "settings.h"
+#if CHIRP_MIC_ES7210
+#include <Wire.h>
+
+#include "es7210.h"
+#endif
 
 static uint8_t* wavBuf = nullptr;                 // PSRAM: WAV header + PCM
 static size_t pcmLen = 0;
@@ -50,6 +55,48 @@ void micRemove() {
 
 bool micInstall() {
     micRemove();
+#if CHIRP_MIC_ES7210
+    // The codec sits on the keyboard's I2C bus (keyboardBegin started it)
+    // and clocks from our I2S0: S3 master, ES7210 slave, MCLK 256 x fs.
+    audio_hal_codec_config_t cfg = {};
+    cfg.adc_input = AUDIO_HAL_ADC_INPUT_ALL;
+    cfg.codec_mode = AUDIO_HAL_CODEC_MODE_ENCODE;
+    cfg.i2s_iface.mode = AUDIO_HAL_MODE_SLAVE;
+    cfg.i2s_iface.fmt = AUDIO_HAL_I2S_NORMAL;
+    cfg.i2s_iface.samples = AUDIO_HAL_16K_SAMPLES;
+    cfg.i2s_iface.bits = AUDIO_HAL_BIT_LENGTH_16BITS;
+    if (es7210_adc_init(&Wire, &cfg) != ESP_OK) return false;
+    if (es7210_adc_config_i2s(cfg.codec_mode, &cfg.i2s_iface) != ESP_OK) return false;
+    if (es7210_mic_select((es7210_input_mics_t)ES7210_INPUT_MIC1) != ESP_OK) return false;
+    if (es7210_adc_set_gain((es7210_input_mics_t)ES7210_INPUT_MIC1, GAIN_30DB) != ESP_OK)
+        return false;
+    if (es7210_adc_ctrl_state(cfg.codec_mode, AUDIO_HAL_CTRL_START) != ESP_OK) return false;
+    i2s_config_t icfg = {};
+    icfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX);
+    icfg.sample_rate = SAMPLE_RATE;
+    icfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
+    icfg.channel_format = I2S_CHANNEL_FMT_ONLY_LEFT;   // SDOUT1's slot: MIC1, mono
+    icfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+    icfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL2;
+    icfg.dma_buf_count = MIC_DMA_BUFS;
+    icfg.dma_buf_len = MIC_DMA_LEN;
+    icfg.use_apll = false;
+    icfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
+    i2s_pin_config_t pins = {};
+    pins.mck_io_num = MIC_MCLK_PIN;
+    pins.bck_io_num = MIC_SCK_PIN;
+    pins.ws_io_num = MIC_WS_PIN;
+    pins.data_out_num = I2S_PIN_NO_CHANGE;
+    pins.data_in_num = MIC_DIN_PIN;
+    if (i2s_driver_install(MIC_PORT, &icfg, 0, nullptr) != ESP_OK) return false;
+    if (i2s_set_pin(MIC_PORT, &pins) != ESP_OK) {
+        i2s_driver_uninstall(MIC_PORT);
+        return false;
+    }
+    i2s_zero_dma_buffer(MIC_PORT);
+    micUp = true;
+    return true;
+#else
     i2s_config_t cfg = {};
     cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM);
     cfg.sample_rate = SAMPLE_RATE;
@@ -74,6 +121,7 @@ bool micInstall() {
     i2s_zero_dma_buffer(MIC_PORT);
     micUp = true;
     return true;
+#endif
 }
 
 bool micInstalled() { return micUp; }

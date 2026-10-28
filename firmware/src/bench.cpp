@@ -7,7 +7,11 @@
 #include "app.h"
 #include "avatar.h"
 #include "character.h"
+#include "capture.h"
 #include "config.h"
+#if CHIRP_HAS_KEYBOARD
+#include "keyboard.h"
+#endif
 #include "input.h"
 #include "menu.h"
 #include "power.h"
@@ -117,6 +121,32 @@ static void benchFont(String args) {
     appRedraw();
     status();
 }
+// `mic [ms]`: install the mic, read for ms (default 1500), report peak and
+// mean — gain tuning and a capture-health probe without a turn.
+static void benchMic(const String& args) {
+    const uint32_t ms = args.length() ? (uint32_t)constrain(args.toInt(), 100, 10000) : 1500;
+    if (!micInstall()) {
+        Serial.println("[Bench] mic init failed");
+        return;
+    }
+    static int16_t buf[READ_CHUNK / 2];
+    uint32_t sum = 0, n = 0, zero = 0;
+    int16_t peak = 0;
+    const uint32_t t0 = millis();
+    while (millis() - t0 < ms) {
+        const size_t br = micRead(buf, READ_CHUNK, 100);
+        for (size_t i = 0; i < br / 2; i++) {
+            const int16_t a = buf[i] < 0 ? -buf[i] : buf[i];
+            sum += a;
+            n++;
+            if (a == 0) zero++;
+            if (a > peak) peak = buf[i] < 0 ? -buf[i] : buf[i];
+        }
+    }
+    micRemove();
+    Serial.printf("[Bench] mic %ums peak=%d mean=%lu zeros=%lu%% samples=%lu\n",
+                  (unsigned)ms, (int)peak, n ? sum / n : 0, n ? zero * 100 / n : 0, n);
+}
 
 void benchRun(String line) {
     line.trim();
@@ -145,6 +175,13 @@ void benchRun(String line) {
         powerBatteryReport();
     } else if (line == "heap" || line.startsWith("heap ")) {
         benchHeapRun(line.length() > 5 ? line.substring(5) : String());
+    } else if (line == "mic" || line.startsWith("mic ")) {
+        benchMic(line.length() > 4 ? line.substring(4) : String());
+#if CHIRP_HAS_KEYBOARD
+    } else if (line == "keys on" || line == "keys off") {
+        keyboardEcho(line.endsWith("on"));
+        Serial.printf("[Bench] key echo %s\n", line.endsWith("on") ? "on" : "off");
+#endif
     } else if (line.startsWith("vol ")) {
         speechSetVolume((uint8_t)constrain(line.substring(4).toInt(), 0, MAX_VOLUME));
     } else if (line.startsWith("theme ")) {

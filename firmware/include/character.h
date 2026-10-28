@@ -26,6 +26,10 @@ void characterBegin();                  // after settingsLoad: the saved view, t
 bool characterOn();                     // the character view replaces the transcript
 void characterSetOn(bool on);           // Setup row: saved; the screen follows on menu close
 
+// The chat view's companion banner (board.h CHIRP_BANNER): the avatar, its
+// state and a level meter, always visible above the transcript. transcriptRender
+// paints it; characterTick animates it while the character view is off.
+void characterBannerPaint();
 void characterPaint();                  // whole screen: sprite and bubble column
 void characterTextChanged();            // the chat changed: relayout, repaint the column
 void characterFollow();                 // pin the column to the newest bubble again

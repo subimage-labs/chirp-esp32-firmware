@@ -37,6 +37,14 @@ static void backlightSet(Backlight b) {
                                                                   : "off");
 }
 
+#if CHIRP_BATTERY_ADC
+// The battery sits on a divider behind an ADC pin; there is no charger to
+// talk to, so USB presence is unknown and the policy treats the device as
+// battery-powered (it sleeps when idle; any key wakes it).
+static PowerSource readSource(bool) {
+    return gauge.known() ? PowerSource::Battery : PowerSource::Unknown;
+}
+#else
 static int chargerRead(uint8_t reg) {
     Wire.beginTransmission(CHARGER_I2C_ADDR);
     Wire.write(reg);
@@ -74,6 +82,7 @@ static PowerSource readSource(bool fresh) {
         Serial.printf("[Power] source %s (r11=%d r0b=%d)\n", powerSourceName(), r11, r0b);
     return source;
 }
+#endif
 
 Backlight powerBacklight() { return backlightNow; }
 
@@ -100,13 +109,14 @@ static void enterDeepSleep() {
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);  // drop light-sleep timer
     powerDown();
     gpio_deep_sleep_hold_en();
-    for (const int pin : {PTT_BTN_PIN, ENCODER_BTN_PIN}) {
+    for (const int pin : CHIRP_WAKE_KEYS) {
         rtc_gpio_pullup_en((gpio_num_t)pin);
         rtc_gpio_pulldown_dis((gpio_num_t)pin);
     }
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);  // keep pull-ups
-    esp_sleep_enable_ext1_wakeup((1ULL << PTT_BTN_PIN) | (1ULL << ENCODER_BTN_PIN),
-                                 ESP_EXT1_WAKEUP_ANY_LOW);
+    uint64_t wakeMask = 0;
+    for (const int pin : CHIRP_WAKE_KEYS) wakeMask |= 1ULL << pin;
+    esp_sleep_enable_ext1_wakeup(wakeMask, ESP_EXT1_WAKEUP_ANY_LOW);
     Serial.flush();
     delay(20);
     esp_deep_sleep_start();
@@ -120,15 +130,14 @@ static void enterLightSleep() {
     Serial.printf("[Power] light sleep (deep in %us)\n", (unsigned)(timerMs / 1000));
     Serial.flush();
     powerDown();
-    gpio_wakeup_enable((gpio_num_t)PTT_BTN_PIN, GPIO_INTR_LOW_LEVEL);
-    gpio_wakeup_enable((gpio_num_t)ENCODER_BTN_PIN, GPIO_INTR_LOW_LEVEL);
+    for (const int pin : CHIRP_WAKE_KEYS)
+        gpio_wakeup_enable((gpio_num_t)pin, GPIO_INTR_LOW_LEVEL);
     esp_sleep_enable_gpio_wakeup();
     esp_sleep_enable_timer_wakeup((uint64_t)max(timerMs, (uint32_t)1000) * 1000ULL);
     esp_light_sleep_start();
 
     const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-    gpio_wakeup_disable((gpio_num_t)PTT_BTN_PIN);
-    gpio_wakeup_disable((gpio_num_t)ENCODER_BTN_PIN);
+    for (const int pin : CHIRP_WAKE_KEYS) gpio_wakeup_disable((gpio_num_t)pin);
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
     if (cause == ESP_SLEEP_WAKEUP_TIMER) {
         // Deep sleep only on a fresh, valid battery reading: USB attached or
@@ -164,9 +173,25 @@ bool powerBoot() {
 }
 
 void powerBegin() {
-    Wire.begin(CHARGER_I2C_SDA, CHARGER_I2C_SCL);
+#if !CHIRP_BATTERY_ADC
+    Wire.begin(CHIRP_I2C_SDA, CHIRP_I2C_SCL);
+#endif
 }
 
+#if CHIRP_BATTERY_ADC
+// Battery level: the divider pin, oversampled 8x (its source impedance is
+// high), into the same gauge (battery.h). Skipped while the speaker plays:
+// the amplifier's load sags the cell and the gauge would smooth that in as
+// charge.
+static bool batterySample() {
+    uint32_t sum = 0;
+    for (int i = 0; i < 8; i++) sum += analogReadMilliVolts(BAT_ADC_PIN);
+    const int mv = (int)(sum / 8) * BAT_ADC_DIV;
+    if (!batteryMvPlausible(mv)) return false;
+    gauge.update(mv, Charge::Idle, false);
+    return true;
+}
+#else
 // Battery level: VBAT (REG0E) and the charge state (REG0B) into the gauge
 // (battery.h) every BATTERY_POLL_MS (1.5 s until the first valid sample). The
 // charger's ADC is one-shot unless asked: continuous conversion (REG02 bit 6,
@@ -186,6 +211,7 @@ static bool batterySample() {
     gauge.update(mv, batteryChargeFromReg0B((uint8_t)r0b), source == PowerSource::Usb);
     return true;
 }
+#endif
 
 static void batteryPublish() {
     const BatteryView v = gauge.view();
@@ -222,8 +248,19 @@ bool powerBatteryText(char* buf, size_t n) {
 }
 
 #ifdef BENCH_CMDS
-// A fresh sample, then the raw registers and everything derived from them.
+// A fresh sample, then the raw reading and everything derived from it.
 void powerBatteryReport() {
+#if CHIRP_BATTERY_ADC
+    readSource(true);
+    const bool fed = batterySample();
+    if (fed) batteryPublish();
+    const int mv = gauge.millivolts();
+    Serial.printf("[Bench] battery adc mv=%d curve=%d%% sample=%s known=%d pct=%d "
+                  "state=%s usb=%d low=%d\n",
+                  mv, batteryPercentFromMv(mv), fed ? "ok" : "rejected",
+                  (int)gauge.known(), gauge.percent(), chargeName(), (int)gauge.usb(),
+                  (int)gauge.low());
+#else
     const int r02 = chargerRead(0x02), r0b = chargerRead(0x0B), r0c = chargerRead(0x0C),
               r0e = chargerRead(0x0E), r11 = chargerRead(0x11);
     readSource(true);
@@ -236,6 +273,7 @@ void powerBatteryReport() {
                   mv >= 0 ? batteryPercentFromMv(mv) : -1, fed ? "ok" : "rejected",
                   (int)gauge.known(), gauge.percent(), chargeName(), (int)gauge.usb(),
                   (int)gauge.low());
+#endif
 }
 #endif
 

@@ -44,6 +44,12 @@ static String msgShown;
 static Ink msgInk = Ink::Text;
 static bool msgNotice = false;                    // uiNotice: shown in the character view too
 static bool stripCompact = false;                 // menus: small text, no battery
+#if CHIRP_COMPOSE
+static bool composeOn();          // the compose band's paint code sits with the strip
+static void composePaint();
+static uint32_t composeBlinkMs = 0;
+static bool composeCursorOn = true;
+#endif
 
 // The character view has no strip, and neither has the chat view's empty
 // screen (nothing said yet: the logo and the hints take the whole height).
@@ -67,6 +73,21 @@ static int tickerW = 0, tickerOffset = -1;
 static uint32_t tickerStart = 0, tickerLast = 0;
 
 static const int CONTENT_Y = 2;    // first row of Q/A content
+
+// The companion banner (board.h): the character, always visible above the
+// transcript. character.cpp paints and animates it; ui.cpp only reserves
+// its band, like the status strip's.
+#if CHIRP_BANNER
+#include "avatar.h"
+static bool bannerOn() { return !characterOn(); }
+// 32 px art at 4x on a tall panel; 2x on a wide one (240 px of height
+// cannot spare 136 for the banner and still show a chat).
+static int bannerH() { return avatar::H * (tft.height() > tft.width() ? 4 : 2) + 8; }
+static int topY() { return CONTENT_Y + (bannerOn() ? bannerH() : 0); }
+#else
+static int topY() { return CONTENT_Y; }
+#endif
+
 
 // Transcript storage lives in PSRAM (psram_alloc.h): below 4 KB the heap
 // serves every request from internal RAM, so 40 turns as many small Strings
@@ -373,7 +394,7 @@ void uiBegin() {
         pinMode(cs, OUTPUT);
     }
     tft.init();
-    tft.setRotation(3);                           // 320x170 landscape, PTT key on top
+    tft.setRotation(CHIRP_ROTATION);             // board.h: landscape 320x170 / portrait 240x320
     fontBegin();
     ledcSetup(BL_LEDC_CH, 2000, 8);               // backlight PWM (dimming)
     ledcAttachPin(TFT_BL, BL_LEDC_CH);
@@ -392,7 +413,7 @@ void uiPanelOff() {
 void uiPanelOn() {
     gpio_hold_dis((gpio_num_t)TFT_BL);
     tft.init();
-    tft.setRotation(3);
+    tft.setRotation(CHIRP_ROTATION);
     ledcAttachPin(TFT_BL, BL_LEDC_CH);
     ledcWrite(BL_LEDC_CH, 255);
 }
@@ -400,7 +421,12 @@ void uiPanelOn() {
 void uiBacklight(uint8_t duty) { ledcWrite(BL_LEDC_CH, duty); }
 
 TFT_eSPI& uiTft() { return tft; }
-int uiContentTop() { return CONTENT_Y; }
+#if CHIRP_BANNER
+int uiBannerHeight() { return bannerOn() ? bannerH() : 0; }
+#else
+int uiBannerHeight() { return 0; }
+#endif
+int uiContentTop() { return topY(); }
 int uiContentBottom() { return contentBottom(); }
 int uiStripTop() { return stripValid ? contentBottom() : tft.height(); }
 void uiClear() {
@@ -631,6 +657,15 @@ void uiTick() {
         msgShown = "";
         showMsg(text.c_str(), msgInk, msgNotice);
     }
+    // The compose cursor blinks like a terminal's (uiComposeSet repaints the
+    // band when the text changes; this only flips the block).
+#if CHIRP_COMPOSE
+    if (composeOn() && sprReady && millis() - composeBlinkMs >= 530) {
+        composeBlinkMs = millis();
+        composeCursorOn = !composeCursorOn;
+        composePaint();
+    }
+#endif
     if (!tickerOn || !stripValid) return;
     const uint32_t now = millis();
     if (now - tickerLast < TICKER_FRAME_MS) return;
@@ -704,7 +739,44 @@ static int liveTop = 0;
 static int liveHeight() {
     return liveRow == LiveRow::None ? 0 : liveRow == LiveRow::Wave ? 2 * metrics.line : metrics.line;
 }
-static int areaBottom() { return stripWanted() ? contentBottom() : tft.height(); }
+// The typed compose line (board.h): a band of its own above the status
+// strip, only in the chat view (the menus keep the compact strip). ui.cpp
+// owns the pixels; main.cpp owns the buffer and calls uiComposeSet.
+#if CHIRP_COMPOSE
+static bool composeOn() { return !stripCompact && !characterOn(); }
+static int composeH() { return metrics.status; }
+static String composeText;
+static int composeCursorX = 0;                     // where the cursor block sits
+
+static void composePaint() {
+    const int y0 = contentBottom() - composeH();
+    TFT_eSPI& t = tft;
+    t.fillRect(0, y0, t.width(), composeH(), uiInk(Ink::Bg));
+    t.drawFastHLine(0, y0, t.width(), uiInk(Ink::Faint));
+    uiFont(UiFont::Body);
+    const char* prompt = "> ";
+    const int px = 6, pw = uiTextWidth(prompt);
+    String line = String(prompt) + uiFit(composeText, t.width() - px - pw - 8);
+    uiText(line, px, y0 + (composeH() - bodyCut().box) / 2, Ink::Text, Ink::Bg);
+    composeCursorX = px + uiTextWidth(line);
+    if (composeCursorOn)
+        t.fillRect(composeCursorX + 1, y0 + 2, 3, composeH() - 4, uiInk(Ink::Accent));
+}
+void uiComposeSet(const char* text) {
+    if (!CHIRP_COMPOSE) return;
+    const String s = text ? text : "";
+    if (s == composeText) return;
+    composeText = s;
+    if (composeOn() && sprReady) composePaint();
+}
+#else
+static bool composeOn() { return false; }
+static int composeH() { return 0; }
+void uiComposeSet(const char*) {}
+#endif
+static int areaBottom() {
+    return (stripWanted() ? contentBottom() : tft.height()) - (composeOn() ? composeH() : 0);
+}
 static int textBottom() { return areaBottom() - liveHeight(); }
 static int liveAreaTop() { return liveRow == LiveRow::Wave ? liveTop + metrics.line : liveTop + 2; }
 static int liveAreaBottom() {
@@ -778,7 +850,7 @@ void transcriptLive(LiveRow row, uint8_t level, bool visible) {
 }
 
 // ---------------------------------------------------------------- layout
-static int visibleRows() { return (textBottom() - CONTENT_Y) / metrics.line; }
+static int visibleRows() { return (textBottom() - topY()) / metrics.line; }
 
 static void pushLine(LineStore& out, const String& line, uint8_t kind) {
     out.push(line.c_str(), line.length(), kind);
@@ -903,12 +975,12 @@ static void layoutPending() {
 static void drawScrollbar() {
     const int total = totalRows();
     const int vis = visibleRows();
-    const int x = tft.width() - 4, trackH = textBottom() - CONTENT_Y;
-    tft.fillRect(x, CONTENT_Y, 3, trackH, uiInk(Ink::Bg));
+    const int x = tft.width() - 4, trackH = textBottom() - topY();
+    tft.fillRect(x, topY(), 3, trackH, uiInk(Ink::Bg));
     if (total <= vis) return;
     const int thumbH = max(8, trackH * vis / total);
     const int span = total - vis;
-    const int thumbY = CONTENT_Y + (trackH - thumbH) * constrain(scrollLine, 0, span) / span;
+    const int thumbY = topY() + (trackH - thumbH) * constrain(scrollLine, 0, span) / span;
     tft.fillRect(x, thumbY, 3, thumbH, uiInk(Ink::Muted));
 }
 
@@ -921,43 +993,49 @@ void transcriptRender() {
         return;
     }
     const int vis = visibleRows();
+#if CHIRP_BANNER
+    characterBannerPaint();                        // the banner, then the area under it
+#endif
     if (totalRows() == 0) {                        // empty chat: the logo, then the hints
         if (!stripWanted()) {                      // no strip here: painted over, not kept
             stripValid = false;
             tickerOn = false;
         }
         const int bottom = areaBottom();
-        tft.fillRect(0, CONTENT_Y, tft.width(), bottom - CONTENT_Y, uiInk(Ink::Bg));
+        tft.fillRect(0, topY(), tft.width(), bottom - topY(), uiInk(Ink::Bg));
         // The logo as large as fits with the hints and a live row under them;
         // the group is centred in the space above the live row, so it moves up
         // only once something happens (you talk, voice mode waits), and keeps
         // its size.
         const int hintsH = 2 * metrics.line, gap = 10;
         const int scale = logoScaleFor(tft.width() - 12,
-                                       bottom - CONTENT_Y - hintsH - gap - metrics.line - 4);
+                                       bottom - topY() - hintsH - gap - metrics.line - 4);
         const int logoH = logoHeight(scale);
-        const int top = CONTENT_Y + max(0, (textBottom() - CONTENT_Y - logoH - gap - hintsH) / 2);
+        const int top = topY() + max(0, (textBottom() - topY() - logoH - gap - hintsH) / 2);
         logoDraw((tft.width() - logoWidth(scale)) / 2, top, scale);
         uiFont(UiFont::Body);
-        const char* h1 = "Hold encoder to talk";
-        const char* h2 = "Double-tap for voice mode";
+        const char* h1 = CHIRP_HINT1;
+        const char* h2 = CHIRP_HINT2;
         const int hy = top + logoH + gap;
         uiText(h1, (tft.width() - uiTextWidth(h1)) / 2, hy, Ink::Muted, Ink::Bg);
         uiText(h2, (tft.width() - uiTextWidth(h2)) / 2, hy + metrics.line, Ink::Muted, Ink::Bg);
         liveTop = textBottom();
         paintLive(true);
+#if CHIRP_COMPOSE
+        if (composeOn() && sprReady) composePaint();
+#endif
         return;
     }
     int start = follow ? max(0, totalRows() - vis)
                        : constrain(scrollLine, 0, max(0, totalRows() - vis));
     scrollLine = start;
-    tft.fillRect(0, CONTENT_Y, tft.width(), contentBottom() - CONTENT_Y, uiInk(Ink::Bg));
+    tft.fillRect(0, topY(), tft.width(), areaBottom() - topY(), uiInk(Ink::Bg));
     uiFont(UiFont::Body);
     int drawn = 0;
     for (int r = 0; r < vis; r++) {
         LogRow ln;
         if (!getLogRow(start + r, ln)) break;
-        const int y = CONTENT_Y + r * metrics.line;
+        const int y = topY() + r * metrics.line;
         if (ln.kind == 2) {
             tft.drawFastHLine(0, y + metrics.line / 2, tft.width(), uiInk(Ink::Muted));
         } else {
@@ -967,9 +1045,12 @@ void transcriptRender() {
         }
         drawn++;
     }
-    liveTop = CONTENT_Y + drawn * metrics.line;      // the live row: the next line
+    liveTop = topY() + drawn * metrics.line;        // the live row: the next line
     paintLive(true);
-    drawScrollbar();                                 // after the live row, which spans the width
+    drawScrollbar();                                // after the live row, which spans the width
+#if CHIRP_COMPOSE
+    if (composeOn() && sprReady) composePaint();
+#endif
 }
 
 // ---------------------------------------------------------------- transcript

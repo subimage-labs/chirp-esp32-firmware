@@ -12,7 +12,12 @@
 #include "config.h"
 #include "console.h"
 #include "input.h"
+#if CHIRP_HAS_KEYBOARD
+#include "keyboard.h"
+#endif
+#include "logo_draw.h"
 #include "logo_web.h"
+#include "portal_layout.h"
 #include "settings.h"
 #include "ui.h"
 
@@ -280,7 +285,7 @@ static void onSave() {
         return;
     }
     sendDone(out.ssid);
-    statusLine("Saved - restarting", Ink::Ok);
+    statusLine(portal_layout::MSG_SAVED, Ink::Ok);
     restartAtMs = millis() + 2000;                 // let the page reach the phone
 }
 
@@ -293,65 +298,111 @@ static void onOther() {
 }
 
 // ---------------------------------------------------------------- screen
-// Full-height QR on the left; text and the status line in the right column
-// (the app's full-width status strip would cut into the code).
-static const int QR_X = 4;
-static const int TEXT_X = 162;
-static const int STATUS_Y = 152;                  // the last 18 px: one Body line
+// The geometry and the words are portal_layout.h (pure, host-tested on
+// every board's panel); this part only draws them. The QR is a white card
+// with rounded corners (its quiet zone takes the rounding). One face
+// throughout, the Fixed cut (ui.h): hierarchy comes from ink and space,
+// never from the chosen font.
+namespace pl = portal_layout;
+static pl::Layout lay;
+static bool layReady = false;                      // statusLine draws only after the screen
+static const int CARD_R = 6;                       // the credentials card's corners
+static const int QR_R = 8;                         // <= the 4-module quiet zone at 2x
 
 // Version 3, ECC M holds the 35-byte join payload; a 4-module white quiet
-// zone per side, as the QR spec asks.
-static void drawQr(const std::string& payload) {
-    TFT_eSPI& tft = uiTft();
-    QRCode qr;
-    std::vector<uint8_t> buf;
+// zone per side, as the QR spec asks. False only if no version fits.
+static bool makeQr(const std::string& payload, QRCode& qr, std::vector<uint8_t>& buf) {
     for (uint8_t ver = 3; ver <= 6; ver++) {
         buf.assign(qrcode_getBufferSize(ver), 0);
-        if (qrcode_initText(&qr, buf.data(), ver, ECC_MEDIUM, payload.c_str()) == 0) break;
-        if (ver == 6) return;                      // cannot happen: payload is short
+        if (qrcode_initText(&qr, buf.data(), ver, ECC_MEDIUM, payload.c_str()) == 0) return true;
     }
-    const int box = tft.height() - 4;
-    const int scale = box / (qr.size + 8);
-    const int side = scale * (qr.size + 8);
-    const int y = (tft.height() - side) / 2;
-    tft.fillRect(QR_X, y, side, side, TFT_WHITE);
+    return false;                                  // cannot happen: payload is short
+}
+
+static void drawQr(QRCode& qr) {
+    TFT_eSPI& tft = uiTft();
+    const int x = lay.qrX, y = lay.qrY, s = lay.qrScale;
+    tft.fillSmoothRoundRect(x, y, lay.qrSide, lay.qrSide, QR_R, TFT_WHITE, uiInk(Ink::Bg));
     for (uint8_t my = 0; my < qr.size; my++)
         for (uint8_t mx = 0; mx < qr.size; mx++)
             if (qrcode_getModule(&qr, mx, my))
-                tft.fillRect(QR_X + (mx + 4) * scale, y + (my + 4) * scale, scale, scale,
-                             TFT_BLACK);
+                tft.fillRect(x + (mx + 4) * s, y + (my + 4) * s, s, s, TFT_BLACK);
 }
 
-// Eight Fixed lines (Atkinson M, 18 px each, whatever font is chosen) and the
-// status line fill the 170 px column next to the QR code. The 12-character
-// password gets a line of its own.
-static void drawScreen() {
-    uiClear();
-    drawQr(wifiQrPayload(apSsid.c_str(), apPass.c_str()));
-    uiFont(UiFont::Fixed);
-    const int x = TEXT_X;
-    uiText("Chirp setup", x, 2, Ink::Accent, Ink::Bg);
-    uiText("Scan, or join WiFi:", x, 20, Ink::Text, Ink::Bg);
-    uiText(apSsid, x + 6, 40, Ink::Strong, Ink::Bg);
-    uiText("Password:", x, 58, Ink::Text, Ink::Bg);
-    uiText(apPass, x + 6, 76, Ink::Strong, Ink::Bg);
-    uiText("The form opens itself;", x, 98, Ink::Text, Ink::Bg);
-    uiText("else browse to", x, 116, Ink::Text, Ink::Bg);
-    uiText(String("http://") + AP_IP.toString(), x, 134, Ink::Strong, Ink::Bg);
+// 12 px glyphs drawn with shapes (the Fixed face has none): rising bars for
+// the network, a key for its password. (x, y) is the top-left.
+static void iconBars(int x, int y, uint16_t c) {
+    for (int i = 0; i < 3; i++) {
+        const int h = 4 + 4 * i;
+        uiTft().fillRect(x + i * 4, y + 12 - h, 3, h, c);
+    }
 }
-
-static void statusLine(const char* msg, Ink ink) {
+static void iconKey(int x, int y, uint16_t c, uint16_t bg) {
     TFT_eSPI& tft = uiTft();
-    tft.fillRect(TEXT_X, STATUS_Y, tft.width() - TEXT_X, tft.height() - STATUS_Y,
-                 uiInk(Ink::Bg));
+    tft.fillSmoothCircle(x + 4, y + 6, 4, c, bg);  // the bow
+    tft.fillSmoothCircle(x + 4, y + 6, 1, bg, c);  // its hole
+    tft.fillRect(x + 8, y + 5, 5, 2, c);           // the shaft
+    tft.fillRect(x + 11, y + 7, 2, 3, c);          // a tooth
+}
+
+static void drawScreen() {
+    TFT_eSPI& tft = uiTft();
+    QRCode qr;
+    std::vector<uint8_t> buf;
+    if (!makeQr(wifiQrPayload(apSsid.c_str(), apPass.c_str()), qr, buf)) return;
+    lay = pl::compute(tft.width(), tft.height(), qr.size);
+    layReady = true;
+
+    uiClear();
+    if (lay.logoH) {
+        const int scale = logoScaleFor(tft.width() / 3, lay.logoH - 8);
+        logoDraw((tft.width() - logoWidth(scale)) / 2, (lay.logoH - logoHeight(scale)) / 2, scale);
+    }
     uiFont(UiFont::Fixed);
-    uiText(msg, TEXT_X, STATUS_Y, ink, Ink::Bg);
+    uiText(pl::HEADLINE, (tft.width() - uiTextWidth(pl::HEADLINE)) / 2, lay.headlineY,
+           Ink::Strong, Ink::Bg);
+    drawQr(qr);
+
+    uiText(pl::LABEL, lay.colX, lay.labelY, Ink::Text, Ink::Bg);
+    // The credentials, never cut: a password with an ellipsis cannot be typed
+    // (the column is sized for the widest one: portal_layout.h COL_MIN).
+    const uint16_t surface = uiInk(Ink::Surface), muted = uiInk(Ink::Muted);
+    const int y = lay.cardY, tx = lay.colX + pl::CARD_TEXT_X;
+    tft.fillSmoothRoundRect(lay.colX - 4, y, lay.colW + 4, pl::CARD_H, CARD_R, surface,
+                            uiInk(Ink::Bg));
+    iconBars(lay.colX + 2, y + 10, muted);
+    uiText(apSsid, tx, y + 6, Ink::Strong, Ink::Surface);
+    iconKey(lay.colX + 2, y + 34, muted, surface);
+    uiText(apPass, tx, y + 30, Ink::Strong, Ink::Surface);
+}
+
+// Feedback under the card, only when something happened: a dot in the
+// state's ink and the message, wrapped onto the second line the layout
+// reserves (portal_layout.h statusSplit). A null message clears it.
+static void statusLine(const char* msg, Ink ink) {
+    if (!layReady) return;                         // the screen is not drawn yet
+    TFT_eSPI& tft = uiTft();
+    const uint16_t bg = uiInk(Ink::Bg);
+    tft.fillRect(lay.colX - 4, lay.statusY, lay.colW + 4, pl::STATUS_LINES * pl::LINE, bg);
+    if (!msg || !*msg) return;
+    uiFont(UiFont::Fixed);
+    tft.fillSmoothCircle(lay.colX + 4, lay.statusY + pl::LINE / 2, 4, uiInk(ink), bg);
+    const String text = msg;
+    const int split = pl::statusSplit(msg, (int)text.length(), lay.statusRoom,
+                                      [&](const char*, int n) { return uiTextWidth(text.substring(0, n)); });
+    const int tx = lay.colX + pl::STATUS_TEXT_X;
+    if (split < 0) {
+        uiText(text, tx, lay.statusY, Ink::Text, Ink::Bg);   // -2 cannot happen: the test checks every message
+        return;
+    }
+    uiText(text.substring(0, split), tx, lay.statusY, Ink::Text, Ink::Bg);
+    uiText(text.substring(split + 1), tx, lay.statusY + pl::LINE, Ink::Text, Ink::Bg);
 }
 
 static void stationStatus(int stations) {
-    if (stations > 0) statusLine("Phone connected", Ink::Ok);
-    else if (settingsReady()) statusLine("Side key = cancel", Ink::Muted);
-    else statusLine("Waiting for a phone", Ink::Accent);
+    if (stations > 0) statusLine(pl::MSG_CONNECTED, Ink::Ok);
+    else if (settingsReady()) statusLine(CHIRP_CANCEL_HINT, Ink::Muted);
+    else statusLine(nullptr, Ink::Muted);          // nothing to say until a phone joins
 }
 
 // ---------------------------------------------------------------- run
@@ -381,9 +432,21 @@ static String randomPassword() {
     return portalPassword([] { return (uint32_t)esp_random(); }).c_str();
 }
 
+// The way back out: the side key (the T-Embed) or Backspace (keyboard
+// boards, which have no side key) leaves when there are settings to go
+// back to.
+static void cancelRequested() {
+    if (restartAtMs) return;
+    if (settingsReady()) ESP.restart();
+    statusLine(portal_layout::MSG_FINISH, Ink::Busy);
+}
+
 void portalRun() {
     Serial.println("[Setup] setup mode");
     inputBegin();
+#if CHIRP_HAS_KEYBOARD
+    keyboardBegin();
+#endif
     uiClear();
     uiMsg("Scanning WiFi...", Ink::Accent);
     scanNearby();                                  // also brings the RF (entropy) up
@@ -425,11 +488,13 @@ void portalRun() {
         stations = st;
 
         InputEvent ev;
-        while (inputPoll(ev)) {
-            if (ev.type != InputType::SideRelease || restartAtMs) continue;
-            if (settingsReady()) ESP.restart();
-            statusLine("Finish setup first", Ink::Busy);
-        }
+        while (inputPoll(ev))
+            if (ev.type == InputType::SideRelease) cancelRequested();
+#if CHIRP_HAS_KEYBOARD
+        KbdEvent kev;
+        while (keyboardPoll(kev))
+            if (kev.kind == KbdEv::Backspace) cancelRequested();
+#endif
         if (portalExpired(settingsReady(), now, startedMs, lastActivityMs, PORTAL_IDLE_MS,
                           PORTAL_MAX_MS)) {
             Serial.println("[Setup] timed out, back to the app");

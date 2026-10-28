@@ -23,8 +23,8 @@ static String workerQ;                            // worker-private until the st
 static String lastAnswer;                         // worker-private until the stage handoff
 static TurnSnap turnSnap;                         // worker -> loop progressive text
 static TurnReader turnReader(turnSnap);           // loop-side cache, pinned per turn
+static String injectedQ;                          // set before the notify: a typed turn
 #ifdef BENCH_CMDS
-static String injectedQ;                          // bench: set before the notify
 static String injectedA;                          // bench: a canned answer instead of Hermes
 #endif
 
@@ -119,12 +119,12 @@ static void turnTask(void*) {
 #ifdef BENCH_CMDS
         const String canned = injectedA;          // this turn's only, whichever way it ends
         injectedA = "";
-        if (injectedQ.length()) {
+#endif
+        if (injectedQ.length()) {                 // typed (keyboard or bench): STT skipped
             workerQ = injectedQ;
             injectedQ = "";
             sttOk = true;
         } else
-#endif
             sttOk = captureTranscribe(workerQ);
         if (!sttOk) { endTurn(WS_FAIL, "STT failed"); continue; }
         publishTurnText();   // question visible from the first THINKING frame
@@ -198,12 +198,12 @@ void turnBegin(bool keepMic) {
     startWorker();
 }
 
-#ifdef BENCH_CMDS
 void turnAskText(const String& q) {
     injectedQ = q;                    // read by the worker after the notify
     startWorker();
 }
 
+#ifdef BENCH_CMDS
 void turnSpeakText(const String& a) {
     injectedQ = "(bench) speak";
     injectedA = a;                    // read by the worker after the notify

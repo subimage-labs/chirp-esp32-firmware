@@ -7,7 +7,9 @@
 
 #include "config.h"
 #include "gesture.h"
+#include "keyboard.h"
 #include "keyring.h"
+#include "trackball.h"
 #include "wheel.h"
 
 static GestureDecoder gestures(DEBOUNCE_MS, BTN_DBL_MS, BTN_HOLD_MS);
@@ -33,23 +35,52 @@ static bool encRaw() {
 #ifdef BENCH_CMDS
     if (simEnc.load()) return true;
 #endif
+#if CHIRP_HAS_KEYBOARD
+    if (keyboardEncDown()) return true;      // space, held: the encoder key's role
+#endif
+#if ENCODER_BTN_PIN >= 0
     return digitalRead(ENCODER_BTN_PIN) == LOW;
+#else
+    return false;
+#endif
 }
 
 static bool sideRaw() {
 #ifdef BENCH_CMDS
     if (simSide.load()) return true;
 #endif
+#if CHIRP_HAS_KEYBOARD
+    if (keyboardSideDown()) return true;     // the ?123 key: the side key's role
+#endif
+#if PTT_BTN_PIN >= 0
     return digitalRead(PTT_BTN_PIN) == LOW;
+#else
+    return false;
+#endif
 }
 
 static void sampleKeys(void*) { keyRing.sample(millis(), encRaw(), sideRaw()); }
 
+// The wheel's detent source: the encoder on wheel boards, the trackball's
+// vertical axis on ball boards (roll up = one clockwise click).
+#if CHIRP_HAS_TRACKBALL
+static int32_t ballNet = 0;                  // detents not yet turned into events
+static int32_t ballPosition() {
+    ballNet += trackballUp() - trackballDown();
+    return ballNet;
+}
+#endif
+
 static int32_t wheelPosition() {
-#ifdef BENCH_CMDS
-    return wheelDetents() + simClicks;
+#if CHIRP_HAS_TRACKBALL
+    const int32_t pos = ballPosition();
 #else
-    return wheelDetents();
+    const int32_t pos = wheelDetents();
+#endif
+#ifdef BENCH_CMDS
+    return pos + simClicks;
+#else
+    return pos;
 #endif
 }
 
@@ -81,10 +112,18 @@ static void update() {
 }
 
 void inputBegin() {
+#if PTT_BTN_PIN >= 0
     pinMode(PTT_BTN_PIN, INPUT_PULLUP);
+#endif
+#if ENCODER_BTN_PIN >= 0
     pinMode(ENCODER_BTN_PIN, INPUT_PULLUP);
+#endif
+#if CHIRP_HAS_TRACKBALL
+    trackballBegin();
+#else
     if (!wheelBegin(ENCODER_A_PIN, ENCODER_B_PIN))
         Serial.println("[Wheel] encoder pins unsupported (need GPIO < 32)");
+#endif
     wheelConsumed = wheelPosition();
     keyLast.t = millis();
     esp_timer_create_args_t args = {};

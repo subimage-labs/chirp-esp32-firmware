@@ -36,6 +36,10 @@
 #include "turn.h"
 #include "ui.h"
 #include "voice.h"
+#if CHIRP_HAS_KEYBOARD
+#include "keyboard.h"
+#include "keymap.h"
+#endif
 
 UiState uiState = UI_BOOT;
 
@@ -280,6 +284,7 @@ void setup() {
     Serial.setRxBufferSize(2048);                  // a whole provisioning line (console.h)
     Serial.begin(115200);
     delay(200);
+    Serial.printf("[Board] %s\n", CHIRP_BOARD_NAME);   // which image this is (board.h)
     const bool wokeByKey = powerBoot();
     uiBegin();
     powerBegin();
@@ -304,6 +309,9 @@ void setup() {
     speechBegin();
     hermesSessionRestore();
     turnTaskStart();
+#if CHIRP_HAS_KEYBOARD
+    keyboardBegin();                               // the T-Deck's keyboard (I2C)
+#endif
     inputBegin();
     if (wokeByKey) inputSwallowKeys();             // the waking press only wakes
 
@@ -350,9 +358,54 @@ static void liveRowTick() {
     else transcriptLive(LiveRow::None, 0, shown);
 }
 
+// ---------------------------------------------------------------- typed chat
+// The compose line (keyboard boards): printable keys append, backspace
+// edits, enter sends the line as a turn through the same path bench `ask`
+// uses (STT skipped). Space and ?123 never reach here: they hold the
+// encoder / side key roles and are sampled by input.cpp.
+#if CHIRP_COMPOSE
+static ComposeBuffer compose;
+static void composeSync() { uiComposeSet(compose.text()); }
+#endif
+
+#if CHIRP_HAS_KEYBOARD
+static void keyboardTick() {
+    KbdEvent ev;
+    while (keyboardPoll(ev)) {
+        switch (ev.kind) {
+        case KbdEv::Char:
+            if (uiState == UI_IDLE && !menuOpen()) {
+                compose.put(ev.c);
+                composeSync();
+            }
+            break;
+        case KbdEv::Backspace:
+            if (compose.backspace()) composeSync();
+            break;
+        case KbdEv::Enter:
+            if (!compose.empty() && uiState == UI_IDLE && !menuOpen() &&
+                WiFi.status() == WL_CONNECTED) {
+                turnAskText(String(compose.text()));
+                compose.clear();
+                composeSync();
+            }
+            break;
+        case KbdEv::Raw:
+            Serial.printf("[Kbd] unhandled key %02X\n", ev.raw);
+            break;
+        default:
+            break;
+        }
+    }
+}
+#endif
+
 void loop() {
     consolePoll(true);
     powerTick();
+#if CHIRP_HAS_KEYBOARD
+    keyboardTick();                               // drain the T-Keyboard: compose, send, key levels
+#endif
     InputEvent ev;
     while (inputPoll(ev)) dispatch(ev);
     volModeTick();

@@ -7,6 +7,9 @@
 //   ask <text>                  a full turn from text (STT skipped)
 //   speak <text>                a turn whose answer is <text>, streamed word by word
 //                               and spoken; Hermes is not asked (local transcript only)
+//   mic [ms]                   install the mic and read for ms (default 1500):
+//                              `[Bench] mic <ms> peak mean zeros% samples`
+//   keys on|off                echo every raw keyboard code as `[Kbd] raw XX`
 //   vol <0-21>                  speaker volume
 //   theme <n>                   theme family n/2, light if n is odd; redraws
 //   view character|transcript   the screen choice (Setup tab row); redraws

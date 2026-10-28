@@ -22,21 +22,28 @@
 #include "voice.h"
 
 // ---------------------------------------------------------------- layout
-// The view takes the whole screen (no status strip): the sprite on the left,
-// centred vertically, and the bubble column on the right (bubbles.h).
+// The view takes the whole screen (no status strip). Landscape (wide panel):
+// the sprite on the left, centred vertically, the bubble column on the right
+// (bubbles.h). Portrait (tall panel): the sprite centred at the top, the
+// column under it, nearly full width. Everything derives from the panel's
+// rotated size, so a board just picks a rotation.
 static const int SCALE = 4;                       // 32x32 logical -> 128x128 px
-static const int SPR_X = 12;                      // sprite left
-static const int COL_X = 146;                     // bubble column: [COL_X, COL_X + COL_W)
-static const int COL_W = 172;
 static const int SB_LANE = 4;                     // scrollbar (3 px) at the column's right edge
 static const int BORDER = 2;                      // bubble outline, also the corner notch
 static const int TAIL_ROWS = 4, TAIL_STEP = 2;    // the tail's stair: 4 steps of 2 px
 
+static bool layoutTall() { return uiTft().height() > uiTft().width(); }
+static int sprX() { return layoutTall() ? (uiTft().width() - avatar::W * SCALE) / 2 : 12; }
+static int sprY() { return layoutTall() ? 8 : (uiTft().height() - avatar::H * SCALE) / 2; }
+static int colX() { return layoutTall() ? 4 : 12 + avatar::W * SCALE + 6; }
+static int colW() { return uiTft().width() - colX() - 2; }
+static int colY() { return layoutTall() ? 8 + avatar::H * SCALE + 6 : 0; }
+static int colView() { return uiTft().height() - colY(); }
+
 static bubbles::Geometry geom() {
     // colW, tail, inset (owner), agentInset, padX, padY, lineH, gap, margin
-    return {COL_W - SB_LANE, 8, 10, 5, 6, 5, uiLineHeight(), 6, 6};
+    return {colW() - SB_LANE, 8, 10, 5, 6, 5, uiLineHeight(), 6, 6};
 }
-static int sprY() { return (uiTft().height() - avatar::H * SCALE) / 2; }
 
 // Meters, drawn in the live bubble: the listening bars in the owner's bubble
 // at the bottom while recording, the speaking wave under the answer, and
@@ -405,8 +412,8 @@ static uint8_t levelFor(avatar::State s, uint32_t now) {
     return 0;
 }
 
-// Render the current frame and push what changed (all of it when forced).
-static void drawFrame(uint32_t now, bool all) {
+// The draw context right now: state age, live level, STT flag, any reaction.
+static avatar::Ctx ctxNow(uint32_t now) {
     avatar::Ctx ctx = {now, now - stateSince, levelFor(curState, now),
                        curState == avatar::Thinking && turnTranscribing()};
     if (reactNow != avatar::ReactNone) {
@@ -418,20 +425,110 @@ static void drawFrame(uint32_t now, bool all) {
             reactNow = avatar::ReactNone;
         }
     }
+    return ctx;
+}
+
+// Render the current frame and push what changed (all of it when forced)
+// into the buffer last shown at (ox, oy). Returns the level the frame used.
+static uint8_t drawFrameInto(uint8_t* shownBuf, bool& valid, int ox, int oy, int scale,
+                             uint32_t now, bool all) {
+    const avatar::Ctx ctx = ctxNow(now);
     figure.render(curState, ctx, next);
     avatar::Rect r;
-    if (all || !shownValid) {
+    if (all || !valid) {
         r.x0 = 0;
         r.y0 = 0;
         r.x1 = avatar::W;
         r.y1 = avatar::H;
-        pushSprite(r, next, SPR_X, sprY(), SCALE);
-        shownValid = true;
-    } else if (avatar::dirtyRect(shown, next, r)) {
-        pushSprite(r, next, SPR_X, sprY(), SCALE);
+        pushSprite(r, next, ox, oy, scale);
+        valid = true;
+    } else if (avatar::dirtyRect(shownBuf, next, r)) {
+        pushSprite(r, next, ox, oy, scale);
     }
-    memcpy(shown, next, sizeof shown);
+    memcpy(shownBuf, next, avatar::PIXELS);
+    return ctx.level;
 }
+
+static void drawFrame(uint32_t now, bool all) {
+    drawFrameInto(shown, shownValid, sprX(), sprY(), SCALE, now, all);
+}
+
+// ---------------------------------------------------------------- banner
+#if CHIRP_BANNER
+// The chat view's companion banner (ui.cpp reserves uiBannerHeight()): the
+// avatar at 4x, its state and a level meter, always visible while chatting.
+// It shares the view's state machine and reactions; the transcript renders
+// under it and its dirty-rect pushes animate between renders.
+// The banner's scale follows the band ui.cpp reserved (uiBannerHeight).
+static int bScale() { return max(1, (uiBannerHeight() - 8) / avatar::H); }
+static const int B_X = 6, B_Y = 4;
+static uint8_t bShown[avatar::PIXELS];
+static bool bValid = false;
+static uint32_t bLastTick = 0;
+static int bMeterW = -1;                        // last painted meter fill
+
+static int bannerMeterY() { return uiBannerHeight() - 16; }
+
+static void bannerMetaPaint() {
+    TFT_eSPI& tft = uiTft();
+    const int x = B_X + avatar::W * bScale() + 8, w = tft.width() - x - 6;
+    const int y = B_Y + 2;
+    tft.fillRect(x, B_Y, w, bannerMeterY() - B_Y - 2, uiInk(Ink::Bg));   // a shorter word leaves nothing
+    uiFont(UiFont::Body);
+    const std::string& prof = settingsProfile();
+    uiText(uiFit(prof.empty() ? "chirp" : prof.c_str(), w), x, y, Ink::Accent, Ink::Bg);
+    uiFont(UiFont::Small);
+    uiText(characterStateName(), x, y + uiLineHeight() + 2, Ink::Muted, Ink::Bg);
+    bMeterW = -1;                               // the meter repaints with its band
+}
+
+static void bannerMeterPaint(uint8_t level, Ink ink) {
+    TFT_eSPI& tft = uiTft();
+    const int x = B_X + avatar::W * bScale() + 8, w = tft.width() - x - 6;
+    const int y = bannerMeterY(), h = 8;
+    const int fill = (w - 4) * level / 255;
+    if (fill == bMeterW) return;
+    bMeterW = fill;
+    tft.fillRect(x, y, w, h, uiInk(Ink::Bg));
+    tft.drawRect(x, y, w, h, uiInk(Ink::Muted));
+    if (fill > 0) tft.fillRect(x + 2, y + 2, fill, h - 4, uiInk(ink));
+}
+
+void characterBannerPaint() {
+    if (!ready) return;                         // no avatar built yet
+    updatePalette();
+    TFT_eSPI& tft = uiTft();
+    const int h = uiBannerHeight();
+    const uint32_t now = millis();
+    const avatar::State s = wantedState(now);
+    if (s != curState) {
+        curState = s;
+        stateSince = now;
+    }
+    tft.fillRect(0, 0, tft.width(), h, uiInk(Ink::Bg));
+    drawFrameInto(bShown, bValid, B_X, B_Y, bScale(), now, true);
+    bannerMetaPaint();
+    tft.drawFastHLine(0, h - 1, tft.width(), uiInk(Ink::Faint));
+    bLastTick = now;
+}
+
+static void characterBannerTick() {
+    if (!ready || menuOpen()) return;
+    const uint32_t now = millis();
+    const bool trickle = powerAnimSlow() && (curState == avatar::Idle || curState == avatar::Sleep);
+    if (now - bLastTick < (trickle ? (uint32_t)ANIM_SLOW_FRAME_MS : avatar::FRAME_MS)) return;
+    if (powerBacklight() == Backlight::Off) return;   // panel dark: nothing to animate for
+    bLastTick = now;
+    const avatar::State s = wantedState(now);
+    if (s != curState) {
+        curState = s;
+        stateSince = now;
+        bannerMetaPaint();                      // the state word follows the turn
+    }
+    const uint8_t lvl = drawFrameInto(bShown, bValid, B_X, B_Y, bScale(), now, false);
+    bannerMeterPaint(lvl, curState == avatar::Speaking ? Ink::Ok : Ink::Listen);
+}
+#endif
 
 // ---------------------------------------------------------------- column layout
 static bool errActive() { return expiryActive(errWindow, millis()); }
@@ -538,7 +635,7 @@ static void layoutColumn() {
     if (column.empty())
         add(TURN_NONE, PartHint, bubbles::Agent, Ink::Muted, BandNone, measure(HINT, bubbles::Agent));
     colTotal = column.empty() ? 0 : bubbles::total(g, &column.back().box);
-    const int view = uiTft().height();
+    const int view = colView();
     if (anchorDue) {                              // a view switch: the place the chat view showed
         anchorDue = false;
         pinned = true;                            // unless its bubble is found
@@ -567,7 +664,7 @@ static bool columnReady() {
     if (!colSpr) {
         colSpr = new TFT_eSprite(&uiTft());
         colSpr->setColorDepth(16);
-        if (!colSpr->createSprite(COL_W, uiTft().height()))
+        if (!colSpr->createSprite(colW(), colView()))
             Serial.println("[Character] column sprite alloc failed");
     }
     return colSpr->created();
@@ -579,7 +676,7 @@ static void pushColumn(int y0, int y1) {
     if (y1 <= y0) return;
     TFT_eSPI& tft = uiTft();
     tft.startWrite();
-    colSpr->pushSprite(COL_X, y0, 0, y0, COL_W, y1 - y0);
+    colSpr->pushSprite(colX(), y0 + colY(), 0, y0, colW(), y1 - y0);
     tft.endWrite();
 }
 
@@ -677,7 +774,7 @@ static void paintBubble(TFT_eSprite& s, const Bubble& b, int y) {
 static void paintScrollbar(TFT_eSprite& s) {
     const int view = s.height();
     if (colTotal <= view) return;
-    const int x = COL_W - SB_LANE + 1, track = view - 8;
+    const int x = colW() - SB_LANE + 1, track = view - 8;
     const int thumb = max(10, track * view / colTotal);
     const int y = 4 + (track - thumb) * colTop / max(1, bubbles::maxTop(colTotal, view));
     s.fillRect(x, y, SB_LANE - 1, thumb, uiInk(Ink::Faint));
@@ -711,7 +808,7 @@ static void setCardMode(avatar::State s) {
 void characterPaint() {
     if (!characterOn()) return;
     TFT_eSPI& tft = uiTft();
-    tft.fillRect(0, 0, COL_X, uiStripTop(), uiInk(Ink::Bg));
+    tft.fillRect(0, 0, colX(), uiStripTop(), uiInk(Ink::Bg));
     updatePalette();
     const uint32_t now = millis();
     const avatar::State s = wantedState(now);
@@ -750,7 +847,7 @@ void characterScroll(int rows) {
     int n = (rows < 0 ? -rows : rows) / 2;         // transcript units (4 / 8 / 16 per click): 2 / 4 / 8 lines
     if (n < 1) n = 1;
     if (rows < 0) n = -n;
-    const int top = bubbles::clampTop(colTop - n * uiLineHeight(), colTotal, uiTft().height());
+    const int top = bubbles::clampTop(colTop - n * uiLineHeight(), colTotal, colView());
     pinned = false;
     if (top == colTop) return;
     colTop = top;
@@ -782,7 +879,14 @@ void characterError(const char* heard, const char* label) {
 
 void characterTick() {
     expiryActive(errWindow, millis());            // disarm once over, view shown or not
+#if CHIRP_BANNER
+    if (!characterOn()) {
+        characterBannerTick();                   // the chat view's banner keeps animating
+        return;
+    }
+#else
     if (!characterOn()) return;
+#endif
     if (menuOpen()) {                             // the menu paints over both halves
         needFull = true;
         return;
@@ -1091,7 +1195,7 @@ void characterColumnShot() {
     const int w = colSpr->width(), h = colSpr->height();
     const uint8_t* px = (const uint8_t*)colSpr->getPointer();
     Serial.printf("[Shot] %dx%d\n", w, h);
-    static unsigned char b64[COL_W * 2 * 4 / 3 + 8];
+    static unsigned char b64[240 * 2 * 4 / 3 + 8];   // any board's widest column row
     for (int y = 0; y < h; y++) {
         size_t n = 0;
         mbedtls_base64_encode(b64, sizeof b64, &n, px + y * w * 2, (size_t)w * 2);

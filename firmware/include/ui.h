@@ -22,6 +22,10 @@ TFT_eSPI& uiTft();              // for screens that draw themselves (menu, porta
 void uiPanelHold();             // loop, after drawing: re-sends the panel's inversion (ui.cpp)
 int uiContentTop();
 int uiContentBottom();
+int uiBannerHeight();                   // the companion banner above the transcript (0 without one)
+// The typed compose line (chat view, above the status strip): the text to
+// show, or null/"" for the empty prompt. The cursor blinks on uiTick.
+void uiComposeSet(const char* text);
 int uiStripTop();               // character view: its bottom (the strip's top while it is up)
 void uiClear();
 
