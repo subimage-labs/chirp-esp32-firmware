@@ -62,9 +62,10 @@ edits via the other tmux pane.
    concurrent ones); never upload without the user asking. On-device
    behavior: flash a bench build (`PLATFORMIO_BUILD_FLAGS=-DBENCH_CMDS`) and
    drive it over serial (commands in `firmware/include/bench.h`; write lines
-   to `/dev/ttyACM*` through a raw fd while `serial-watch.py` logs; run
-   `stty -F /dev/ttyACM0 raw -echo` before starting the watcher, or bench
-   lines get no reply); after every bench flash run `host/smoke.py` (add
+   to `/dev/ttyACM*` through a raw fd while `serial-watch.py` logs; the
+   watcher sets the port raw, no echo, each time it opens it: an echoing
+   port feeds the device's own log back to it as bench commands after every
+   reset or replug); after every bench flash run `host/smoke.py` (add
    `--turn` / `--reboot` when the change touches turns or persisted settings)
    and report its table — set `vol 0` when nobody
    is listening, and pick "+ New chat" in the menu before any `ask`:

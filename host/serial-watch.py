@@ -12,7 +12,9 @@ Start detached so it never ties up a shell or tool call:
 import argparse
 import glob
 import os
+import termios
 import time
+import tty
 
 
 def pick_port(preferred):
@@ -51,6 +53,13 @@ def main():
                 except OSError:
                     time.sleep(0.2)
                     continue
+                # Raw, no echo, on every open: a fresh port echoes what it
+                # receives, so the device's own log would come back to it as
+                # bench commands, flooding its loop after each reset or replug.
+                try:
+                    tty.setraw(fd, termios.TCSANOW)
+                except termios.error:
+                    pass                                # not a tty (a test pipe)
                 if midline:                             # a line cut by the hangup ends here,
                     out.write(b"\n")                    # not glued to the new port's first one
                     midline = False
