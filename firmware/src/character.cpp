@@ -525,8 +525,8 @@ static void companionMeterPaint(uint8_t level, Ink ink) {
     if (fill > 0) tft.fillRect(m.x + 2, m.y + 2, fill, m.h - 4, uiInk(ink));
 }
 
-void characterBannerPaint() {
-    if (!ready || !companionGeo(bGeo)) return;  // no avatar yet, or no companion here
+bool characterBannerPaint() {
+    if (!ready || !companionGeo(bGeo)) return false;   // no avatar yet, or no companion here
     updatePalette();
     TFT_eSPI& tft = uiTft();
     const ul::Rect& a = bGeo.area;
@@ -544,6 +544,7 @@ void characterBannerPaint() {
     else
         tft.drawFastVLine(a.right() - 1, a.y, a.h, uiInk(Ink::Faint));
     bLastTick = now;
+    return true;
 }
 
 static void characterBannerTick() {

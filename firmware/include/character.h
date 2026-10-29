@@ -29,7 +29,7 @@ void characterSetOn(bool on);           // Setup row: saved; the screen follows 
 // The chat view's companion banner (board.h CHIRP_BANNER): the avatar, its
 // state and a level meter, always visible above the transcript. transcriptRender
 // paints it; characterTick animates it while the character view is off.
-void characterBannerPaint();
+bool characterBannerPaint();            // false: nothing painted (no avatar yet, no companion here)
 void characterPaint();                  // whole screen: sprite and bubble column
 void characterTextChanged();            // the chat changed: relayout, repaint the column
 void characterFollow();                 // pin the column to the newest bubble again
