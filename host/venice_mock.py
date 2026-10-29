@@ -5,7 +5,7 @@ Serves exactly the four calls a venice-mode device makes:
 
   POST /api/v1/chat/completions            -> SSE deltas of a fixed answer + [DONE]
   POST /api/v1/audio/transcriptions        -> {"text": ...}   (multipart: model + wav)
-  POST /api/v1/audio/speech                -> mp3 bytes       (json {input, model, voice})
+  POST /api/v1/audio/speech                -> mp3 bytes       (json {input, model, voice, response_format})
   GET  /api/v1/models                      -> {"data": []}    (the boot self-test probe)
 
 Every request's shape is logged so a bench run shows exactly what the
@@ -51,6 +51,15 @@ def load_chirp(path):
     if not m:
         raise SystemExit(f"no CHIRP_MP3 array in {path}")
     return bytes(int(x) for x in m.group(1).replace("\n", " ").split(",") if x.strip())
+
+
+def silent_wav(seconds=1, rate=24000):
+    """What Venice's TTS answers without response_format=mp3: 16-bit mono PCM WAV."""
+    import struct
+    pcm = b"\x00\x00" * rate * seconds
+    return (b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVEfmt " +
+            struct.pack("<IHHIIHH", 16, 1, 1, rate, rate * 2, 2, 16) + b"data" +
+            struct.pack("<I", len(pcm)) + pcm)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -140,7 +149,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             req = json.loads(body)
             log(f"tts model={req.get('model')} voice={req.get('voice')} "
-                f"input={len(req.get('input', ''))} chars")
+                f"format={req.get('response_format')} input={len(req.get('input', ''))} chars")
+            if req.get("response_format") != "mp3":
+                # Real Venice answers WAV here, still labelled audio/mpeg; the
+                # device's mp3 decoder cannot play it. Mirror that.
+                log("tts WITHOUT response_format=mp3: answering WAV like Venice does")
+                self._send(200, "audio/mpeg", silent_wav())
+                return
             self._send(200, "audio/mpeg", MP3)
             return
 

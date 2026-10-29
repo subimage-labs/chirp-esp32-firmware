@@ -291,7 +291,12 @@ static void ttsFetchPSRAM(const std::string& text, uint8_t*& out, size_t& outSiz
     outSize = 0;
     const bool venice = settingsStored().backend == "venice";
     JsonDocument req;
-    if (venice) req["model"] = venice_policy::TTS_MODEL;
+    if (venice) {
+        req["model"] = venice_policy::TTS_MODEL;
+        // Venice answers WAV (labelled audio/mpeg) unless asked for mp3, and
+        // the decoder plays mp3 only (measured live: 528 KB WAV vs 11 KB mp3).
+        req["response_format"] = "mp3";
+    }
     req["input"] = text.c_str();
     req["voice"] = TTS_VOICE;
     String body;
