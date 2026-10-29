@@ -15,12 +15,12 @@ static int failures = 0;
     } while (0)
 
 static bool hp(const char* in, uint16_t def, const char* host, uint16_t port) {
-    HostPort r{"", 0};
+    HostPort r{"", 0, Scheme::Bare};
     return parseHostPort(in, def, r) && r.host == host && r.port == port;
 }
 
 static bool hpRejects(const char* in) {
-    HostPort r{"untouched", 1};
+    HostPort r{"untouched", 1, Scheme::Bare};
     return !parseHostPort(in, 8642, r) && r.host == "untouched";
 }
 
@@ -30,7 +30,11 @@ static void hostPort() {
     CHECK(hp("  http://Gateway-1:8642/ ", 8643, "Gateway-1", 8642));   // pasted URL
     CHECK(hp("HTTP://box", 8643, "box", 8643));
     CHECK(hp("box:65535", 1, "box", 65535));
-    CHECK(hpRejects("https://box"));          // device speaks plain http only
+    HostPort sec{"", 0, Scheme::Bare};
+    CHECK(parseHostPort("https://box", 1, sec) && sec.host == "box" && sec.port == 1 &&
+          sec.scheme == Scheme::Https);       // the policy on it is per caller
+    CHECK(parseHostPort("http://box", 1, sec) && sec.scheme == Scheme::Http);
+    CHECK(parseHostPort("box", 1, sec) && sec.scheme == Scheme::Bare);
     CHECK(hpRejects("ftp://box"));
     CHECK(hpRejects("box/p/alpha"));           // the profile is its own field
     CHECK(hpRejects("box:0"));
@@ -251,6 +255,136 @@ static void newGatewayReplacesAgents() {
     CHECK(out.agents.size() == 2);
 }
 
+// ---- the venice backend ----
+
+static SettingsInput veniceForm(const char* key = "", const char* host = "") {
+    SettingsInput in = form("Home", "", "gw");
+    in.backendSet = true;
+    in.backend = "venice";
+    in.veniceKey = key;
+    in.venice = host;
+    return in;
+}
+
+static DeviceSettings veniceStored() {
+    DeviceSettings s = stored();
+    s.backend = "venice";
+    s.veniceKey = "vkey1";
+    return s;                                   // the backend host stays the default
+}
+
+// Local hosts stay plain http even though the parser now knows https.
+static void localHostsStayHttp() {
+    DeviceSettings out;
+    CHECK(mergeSettings(stored(), form("Home", "", "https://gw"), out) != nullptr);
+    CHECK(mergeSettings(stored(), form("Home", "", "gw", "", "", "https://s"), out) != nullptr);
+}
+
+static void backendSwitch() {
+    DeviceSettings out;
+    CHECK(mergeSettings(stored(), veniceForm("vkey1"), out) == nullptr);
+    CHECK(out.backend == "venice" && out.veniceKey == "vkey1");
+    CHECK(out.venice == "https://api.venice.ai:443");
+    CHECK(out.hermes == "gw:8642" && out.agents.size() == 1);   // kept for the switch back
+    CHECK(settingsUsable(out));
+    // No key anywhere: a venice device cannot talk to its backend.
+    CHECK(mergeSettings(stored(), veniceForm(), out) != nullptr);
+    CHECK(mergeSettings(stored(), veniceForm("two words"), out) != nullptr);
+    CHECK(mergeSettings(stored(), veniceForm(std::string(257, 'v').c_str()), out) != nullptr);
+    // A backend that isn't a mode is a typo, not a silent local.
+    SettingsInput bad = form("Home", "", "gw");
+    bad.backendSet = true;
+    bad.backend = "cloud";
+    CHECK(mergeSettings(stored(), bad, out) != nullptr);
+    bad.backend = "";                           // an explicit blank keeps the mode
+    CHECK(mergeSettings(stored(), bad, out) == nullptr && out.backend == "local");
+    // A first venice setup needs no Hermes host and no agent at all.
+    SettingsInput first;
+    first.ssid = "Home";
+    first.pass = "password1";
+    first.backendSet = true;
+    first.backend = "venice";
+    first.veniceKey = "vkey1";
+    CHECK(mergeSettings(DeviceSettings(), first, out) == nullptr);
+    CHECK(out.hermes.empty() && out.agents.empty() && settingsUsable(out));
+    // Switching back to Hermes demands its host and an agent again.
+    DeviceSettings ven = out;
+    SettingsInput back = form("Home", "", "");
+    back.backendSet = true;
+    back.backend = "local";
+    CHECK(mergeSettings(ven, back, out) != nullptr);
+}
+
+static void veniceHostForms() {
+    DeviceSettings out;
+    CHECK(mergeSettings(stored(), veniceForm("vkey1", ""), out) == nullptr);
+    CHECK(out.venice == "https://api.venice.ai:443");           // blank = the default
+    CHECK(mergeSettings(stored(), veniceForm("vkey1", "api.venice.ai"), out) == nullptr);
+    CHECK(out.venice == "https://api.venice.ai:443");           // a bare host is https
+    CHECK(mergeSettings(stored(), veniceForm("vkey1", "https://venice.example:8443/"),
+                        out) == nullptr);
+    CHECK(out.venice == "https://venice.example:8443");
+    CHECK(mergeSettings(stored(), veniceForm("vkey1", "http://bench.test:9000"), out) == nullptr);
+    CHECK(out.venice == "http://bench.test:9000");             // explicit bench-local http
+    for (const char* bad : {"ftp://x", "box/p", "bad host", "https://box:0"})
+        CHECK(mergeSettings(stored(), veniceForm("vkey1", bad), out) != nullptr);
+}
+
+// A backend key was issued by the backend it came from.
+static void veniceKeyBelongsToItsHost() {
+    DeviceSettings out = veniceStored();
+    // The same backend host: a blank key keeps the stored one.
+    CHECK(mergeSettings(veniceStored(), veniceForm(), out) == nullptr);
+    CHECK(out.veniceKey == "vkey1");
+    // A different backend host never inherits the stored key...
+    CHECK(mergeSettings(veniceStored(), veniceForm("", "https://other.example"), out) != nullptr);
+    CHECK(out.veniceKey == "vkey1");                        // failure leaves `out` untouched
+    // ...unless the submission brings one for the new host.
+    CHECK(mergeSettings(veniceStored(), veniceForm("vkey2", "https://other.example"),
+                        out) == nullptr);
+    CHECK(out.veniceKey == "vkey2" && out.venice == "https://other.example:443");
+}
+
+
+// Venicle submissions never touch the Hermes roster: a submitted agent key
+// was issued by whatever gateway sent it, so it must never be filed under
+// the preserved Hermes host.
+static void veniceIgnoresAgentSubmissions() {
+    DeviceSettings out;
+    SettingsInput in = veniceForm("vkey1");
+    in.hermes = "other";                         // another gateway, and its key
+    in.addProfile = "beta";
+    in.addKey = "otherkey";
+    in.forget = {"alpha"};
+    CHECK(mergeSettings(stored(), in, out) == nullptr);
+    CHECK(out.hermes == "gw:8642");              // preserved, not switched
+    CHECK(out.agents.size() == 1 && out.agents[0].profile == "alpha" &&
+          out.agents[0].key == "storedkey");     // no re-file, no removal
+    CHECK(activeProfile(out) == "alpha");
+}
+
+// The gifting flow: store the backend key with no WiFi yet — storable but
+// not usable — then the portal completes it with the network.
+static void venicePreProvision() {
+    DeviceSettings out;
+    SettingsInput pre;
+    pre.backendSet = true;
+    pre.backend = "venice";
+    pre.veniceKey = "vkey1";
+    CHECK(mergeSettings(DeviceSettings(), pre, out) == nullptr);
+    CHECK(out.ssid.empty() && out.backend == "venice" && out.veniceKey == "vkey1");
+    CHECK(!settingsUsable(out));                 // no WiFi yet: setup mode
+    DeviceSettings ven = out;
+    SettingsInput done;
+    done.ssid = "Home";
+    done.pass = "password1";
+    done.backendSet = true;
+    done.backend = "venice";
+    CHECK(mergeSettings(ven, done, out) == nullptr);
+    CHECK(out.ssid == "Home" && out.veniceKey == "vkey1" && settingsUsable(out));
+    // Local mode never allows the keyless-WiFi state.
+    CHECK(mergeSettings(stored(), form("", "", "gw"), out) != nullptr);
+}
 // An agent's character look (host/pair.py): 24 hex digits of trait indexes.
 static const char* const LOOK = "ffffffff0300ffff0107ff02";
 
@@ -353,6 +487,16 @@ static void usable() {
     s.agents = {Agent{"a", "k"}, Agent{"b", "k"}, Agent{"c", "k"}, Agent{"d", "k"},
                 Agent{"e", "k"}};
     CHECK(!settingsUsable(s));
+    DeviceSettings v = stored();
+    v.backend = "venice";
+    CHECK(!settingsUsable(v));                              // no key: setup mode
+    v.veniceKey = "vkey1";
+    v.agents.clear();
+    CHECK(settingsUsable(v));                               // venice needs no agent
+    v.venice = "bad host";
+    CHECK(!settingsUsable(v));                              // malformed backend host
+    v.ssid = "";
+    CHECK(!settingsUsable(v));                              // pre-provision: no WiFi yet
 }
 
 static void escaping() {
@@ -422,6 +566,12 @@ int main() {
     atMostFourAgents();
     useAndForget();
     newGatewayReplacesAgents();
+    localHostsStayHttp();
+    backendSwitch();
+    veniceHostForms();
+    veniceKeyBelongsToItsHost();
+    veniceIgnoresAgentSubmissions();
+    venicePreProvision();
     characterLook();
     sessionFiles();
     usable();

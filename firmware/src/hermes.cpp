@@ -6,8 +6,11 @@
 
 #include "config.h"
 #include "settings.h"
+#include "venice.h"
+#include "venice_policy.h"
 
 static String sessionId;                          // server-issued, resumes history
+static venice_policy::History vHistory;           // venice: the device holds the context
 
 // ---------------------------------------------------------------- session
 // One file per gateway + agent (sessionFileName, setup_form.h): a session id
@@ -45,18 +48,43 @@ void hermesSessionSet(const String& id) {
 void hermesSessionForget() {
     sessionId = "";
     LittleFS.remove(sessionPath());
+    vHistory.clear();                             // a new chat starts empty everywhere
 }
 
 // ---------------------------------------------------------------- stream
 AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*stopped)()) {
-    JsonDocument req;
-    JsonArray msgs = req["messages"].to<JsonArray>();
-    JsonObject m = msgs.add<JsonObject>();
-    m["role"] = "user";
-    m["content"] = q;
-    req["stream"] = true;
+    const bool venice = settingsStored().backend == "venice";
     String body;
-    serializeJson(req, body);
+    if (venice) {
+        // Venicle is stateless: the persona, the newest exchanges and the
+        // question go out as one array, and Venice's own preamble and
+        // hidden thinking are switched off for voice latency.
+        const auto msgs =
+            venice_policy::buildMessages(vHistory, std::string(q.c_str()));
+        JsonDocument req;
+        req["model"] = venice_policy::CHAT_MODEL;
+        JsonArray ms = req["messages"].to<JsonArray>();
+        for (const auto& m : msgs) {
+            JsonObject o = ms.add<JsonObject>();
+            o["role"] = m.first;
+            o["content"] = m.second;
+        }
+        req["stream"] = true;
+        JsonObject vp = req["venice_parameters"].to<JsonObject>();
+        vp["include_venice_system_prompt"] = false;
+        vp["disable_thinking"] = true;
+        JsonObject rs = req["reasoning"].to<JsonObject>();
+        rs["enabled"] = false;
+        serializeJson(req, body);
+    } else {
+        JsonDocument req;
+        JsonArray msgs = req["messages"].to<JsonArray>();
+        JsonObject m = msgs.add<JsonObject>();
+        m["role"] = "user";
+        m["content"] = q;
+        req["stream"] = true;
+        serializeJson(req, body);
+    }
 
     // One retry when the connection is refused (gateway restarting, WiFi just
     // back): nothing reached Hermes, so asking again can't double the answer.
@@ -69,7 +97,12 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
             Serial.println("[Hermes] connection refused, retrying once");
             delay(HERMES_RETRY_MS);
         }
-        http.begin(settingsEndpoints().chatUrl);
+        if (venice) {
+            if (!veniceClock(8000)) return AskEnd::NoClock;
+            veniceHttpBegin(http, settingsEndpoints().chatUrl);
+        } else {
+            http.begin(settingsEndpoints().chatUrl);
+        }
         // HTTPClient::setTimeout is uint16 ms; the millis() deadline below is
         // not. Keep the wire timeout clamped, honor the full budget for the stream.
         http.setTimeout((uint16_t)(HERMES_TIMEOUT_MS > 60000UL ? 60000UL
@@ -79,17 +112,24 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
         http.addHeader("Content-Type", "application/json");
         http.addHeader("Accept", "text/event-stream");
         http.addHeader("Authorization", settingsEndpoints().auth);
-        if (sessionId.length()) http.addHeader("X-Hermes-Session-Id", sessionId);
+        if (!venice && sessionId.length())
+            http.addHeader("X-Hermes-Session-Id", sessionId);
         code = http.POST(body);
     }
     if (code != HTTP_CODE_OK) {
         Serial.printf("[Hermes] HTTP %d: %s\n", code,
                       code > 0 ? http.getString().c_str() : "(conn)");
         http.end();
+        if (venice) {
+            if (code == 401) return AskEnd::BadKey;
+            if (code == 402) return AskEnd::NoCredit;
+            if (code == 403) return AskEnd::NotAllowed;
+            if (code == 429) return AskEnd::RateLimited;
+        }
         return stopped() ? AskEnd::Stopped : AskEnd::Unreachable;
     }
     String sid = http.header("X-Hermes-Session-Id");
-    if (sid.length()) sessionId = sid;            // continue this conversation
+    if (!venice && sid.length()) sessionId = sid;  // continue this conversation
     WiFiClient* stream = http.getStreamPtr();
     if (!stream) { http.end(); return AskEnd::Unreachable; }
     stream->setTimeout((uint16_t)(SSE_IDLE_LIMIT_MS > 60000UL ? 60000UL
@@ -98,6 +138,7 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
     char lineBuf[2048];
     size_t lineLen = 0;
     bool finished = false, sawFinish = false, gotDelta = false;
+    std::string venAnswer;                         // venice: this turn's history entry
     const uint32_t deadline = millis() + HERMES_STREAM_BUDGET_MS;
     // Last data event: the gateway writes ": keepalive" comments while the
     // model hasn't answered, and the raw stream also carries the chunked
@@ -136,10 +177,11 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
                         JsonDocument doc;
                         if (!deserializeJson(doc, data, lineLen - (data - lineBuf))) {
                             const char* delta = doc["choices"][0]["delta"]["content"];
-                            if (delta && delta[0] != '\0') {
-                                gotDelta = true;
-                                onDelta(delta);
-                            }
+            if (delta && delta[0] != '\0') {
+                gotDelta = true;
+                if (venice) venAnswer += delta;
+                onDelta(delta);
+            }
                             const char* fin = doc["choices"][0]["finish_reason"];
                             if (fin && fin[0] != '\0') sawFinish = true;
                         }
@@ -154,7 +196,13 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
         if (finished) break;
     }
     http.end();
-    if (finished || sawFinish || gotDelta) return AskEnd::Answered;
+    if (finished || sawFinish || gotDelta) {
+        if (venice && !venAnswer.empty()) {
+            vHistory.emplace_back(std::string(q.c_str()), venAnswer);
+            venice_policy::trimHistory(vHistory);
+        }
+        return AskEnd::Answered;
+    }
     return millis() < deadline ? AskEnd::Unreachable : AskEnd::Silent;
 }
 
@@ -175,6 +223,8 @@ static int getJson(const String& url, JsonDocument& doc, String& resp) {
 }
 
 int hermesListSessions(std::vector<SessionItem>& out, int max) {
+    if (settingsStored().backend == "venice")
+        return HTTP_CODE_OK;      // no server sessions; the card roster is phase 3
     JsonDocument doc;
     String resp;
     const int code = getJson(settingsEndpoints().sessionsUrl, doc, resp);
@@ -198,8 +248,14 @@ int hermesListSessions(std::vector<SessionItem>& out, int max) {
 }
 
 int hermesProbe() {
+    const bool venice = settingsStored().backend == "venice";
+    const String url = venice ? settingsEndpoints().shimHealthUrl   // authed /models
+                              : settingsEndpoints().sessionsUrl;
     HTTPClient http;
-    http.begin(settingsEndpoints().sessionsUrl);
+    if (venice ? !veniceHttpBegin(http, url) : !http.begin(url)) {
+        http.end();
+        return HTTPC_ERROR_CONNECTION_REFUSED;
+    }
     http.setConnectTimeout(3000);
     http.setTimeout(3000);
     http.addHeader("Authorization", settingsEndpoints().auth);

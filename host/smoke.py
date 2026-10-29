@@ -295,7 +295,7 @@ def turn_verdict(lines):
     end = next((l for l in lines if l.startswith("[Speak] end")), None)
     errs = [l.strip() for l in lines
             if l.startswith("[Hermes]") and ("HTTP" in l or "refused" in l)
-            or "Hermes unreachable" in l]
+            or "Backend unreachable" in l]
     if any(l.startswith("[Bench] ask refused") for l in lines):
         return False, "ask refused: device not idle"
     if not end:
@@ -730,7 +730,9 @@ class Smoke:
         self.reopen()
 
         lines, ok = self.wait_lines(
-            lambda ls: any(l.startswith("[OTA] running") for l in ls) and
+            lambda ls: any(l.startswith("[OTA] running") or
+                           l.startswith("[OTA] skipped: no manifest source")
+                           for l in ls) and
             any(l.startswith("[SelfTest]") for l in ls), self.reboot_pos, BOOT_WAIT_S, poll=1.0)
         healthy, boot_ev = boot_health(lines)
         if not (ok and healthy):

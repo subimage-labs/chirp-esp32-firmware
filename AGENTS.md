@@ -79,8 +79,11 @@ edits via the other tmux pane.
    moves only through the handoffs documented there. Pure logic (policies,
    decoders, packers) lives in Arduino-free headers with host tests. Keep it
    that way: new state gets one owner, new logic that can be pure is pure.
-6. **LAN-only audio path.** The device talks only to the workstation.
-   Do not introduce external/cloud endpoints into the audio pipeline.
+6. **Audio path backends.** Local mode talks only to the workstation over
+   the LAN, plain HTTP: no other cloud endpoint may enter it. Venice mode
+   talks TLS to the configured backend host (a device setting, default
+   api.venice.ai) for chat, STT and TTS; that host is the one cloud endpoint
+   the firmware may call.
 7. **Nothing that profiles the owner.** No LAN IPs, hostnames, network maps,
    device inventory, or security-lab details in tracked files or commit
    messages. Private planning notes live in the gitignored `tmp/`.
@@ -129,8 +132,16 @@ Hard-won procedure — every step below exists because skipping it broke a flash
    `-e`, `-t upload` uploads every board's image in turn. Never `&&`-chain
    build→upload→commit behind a trailing `&`/`disown`: a failed build still
    uploaded the stale binary, and backgrounding swallowed the commit step
-   silently. A `PLATFORMIO_BUILD_FLAGS` change rebuilds `.pio/build` from
-   scratch: build the bench image last and stage it before the next build.
+   silently. Before uploading a bench image, verify the marker
+   (`grep -c "Bench] > " firmware/.pio/build/<env>/firmware.bin` must be 1):
+   a bench build has re-served the non-bench binary before, and a device that
+   ignores bench lines but answers `settings` is running the non-bench image
+   (`pio run -t clean` before switching variants rules it out).
+2b. **A USB flash only writes app0.** A device that took a WiFi update boots
+   app1 (0x650000) and silently ignores the fresh app0 image — the `[OTA]
+   running <version>` line tells the truth. Write the image to 0x650000 as
+   well (`esptool write_flash 0x650000 firmware/.pio/build/*/firmware.bin`)
+   or check otadata before trusting the flash.
 3. **Port name drifts.** The S3 re-enumerates after resets (ACM0 → ACM1). If
    the upload can't open the port: `ls /dev/ttyACM*`.
 4. **Stuck in download mode, or silent after an upload** (`waiting for

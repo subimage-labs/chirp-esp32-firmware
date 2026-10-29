@@ -120,7 +120,20 @@ static void sendForm(const SettingsInput& v, bool paired, const char* error) {
     if (v.open) h += " checked";
     h += ">Open network (no password)</label>";
 
-    h += "<h3>Hermes</h3>";
+    h += "<h3>Backend</h3>"
+         "<label class=cb><input type=radio name=backend value=local";
+    if (v.backend != "venice") h += " checked";
+    h += ">Hermes on my network</label>"
+         "<label class=cb><input type=radio name=backend value=venice";
+    if (v.backend == "venice") h += " checked";
+    h += ">Venice <small>(cloud: one API key, no computer)</small></label>"
+         "<div id=venicefields>";
+    field(h, "Venice API key", "venicekey", "password", "",
+          cur.veniceKey.empty() ? "the key from venice.ai" : "blank keeps the stored key",
+          "class=pw maxlength=256 autocapitalize=none autocorrect=off");
+    field(h, "Venice host <small>(advanced)</small>", "venice", "text", v.venice,
+          "api.venice.ai:443", "autocapitalize=none autocorrect=off");
+    h += "</div><div class=localonly><h3>Hermes</h3>";
     field(h, "Hermes host", "hermes", "text", v.hermes, "host or host:8642",
           "required autocapitalize=none autocorrect=off");
     if (!cur.agents.empty())
@@ -179,10 +192,10 @@ static void sendForm(const SettingsInput& v, bool paired, const char* error) {
              "<input type=hidden name=newlook disabled><p>Adds the agent <b id=pairname></b> "
              "from the pairing code and uses it.</p></div>";
     }
-
-    h += "<h3>Speech</h3>";
+    h += "</div><div class=localonly><h3>Speech</h3>";
     field(h, "Audio shim host <small>(optional)</small>", "shim", "text", v.shim,
           "same as Hermes host, port 8643", "autocapitalize=none autocorrect=off");
+    h += "</div>";
     h += "<label class=cb><input type=checkbox onclick=\"document.querySelectorAll('.pw')"
          ".forEach(e=>e.type=this.checked?'text':'password')\">Show password and key</label>"
          "<button>Save and restart</button></form>"
@@ -192,6 +205,18 @@ static void sendForm(const SettingsInput& v, bool paired, const char* error) {
     // shim, look>. The fragment never leaves the phone (no request line, no
     // Referer); the script moves it into the form and strips it from the URL.
     h += R"JS(<script>(function(){
+var f=document.forms[0];
+var upd=function(){var v=(f.backend&&f.backend.value)?f.backend.value:'local';
+var hs=v!=='local',ls=document.querySelectorAll('.localonly');
+for(var i=0;i<ls.length;i++){ls[i].hidden=hs;
+var t=ls[i].querySelectorAll('input:not(#pairbox input)');
+for(var k=0;k<t.length;k++)t[k].disabled=hs;}
+var w=document.getElementById('venicefields');
+if(w){w.hidden=v!=='venice';var vi=w.querySelectorAll('input');
+for(var z=0;z<vi.length;z++)vi[z].disabled=v!=='venice';}};
+var rs=f.querySelectorAll('[name=backend]');for(var i=0;i<rs.length;i++)
+rs[i].addEventListener('change',upd);
+upd();
 var m=/^#pair=(.*)$/.exec(location.hash);
 if(!m)return;
 history.replaceState(null,'',location.pathname);
@@ -200,9 +225,10 @@ if(!p)return;
 try{
 var b=atob(m[1].replace(/-/g,'+').replace(/_/g,'/')),u=new Uint8Array(b.length);
 for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
-var j=JSON.parse(new TextDecoder().decode(u)),f=document.forms[0];
+var j=JSON.parse(new TextDecoder().decode(u));
 var s=function(v){return typeof v==='string'?v:''};
 if(!s(j.hermes)||!s(j.key))throw 0;
+f.backend.value='local';upd();
 f.hermes.value=s(j.hermes);
 f.shim.value=s(j.shim);
 var q=function(n){var e=p.querySelector('[name='+n+']');e.disabled=false;return e};
@@ -243,6 +269,8 @@ static void onForm() {
     v.open = !cur.ssid.empty() && cur.pass.empty();
     v.hermes = cur.hermes;
     v.shim = cur.shim;
+    v.backend = cur.backend.empty() ? "local" : cur.backend;
+    v.venice = cur.venice;
     v.useSet = cur.active < cur.agents.size();
     if (v.useSet) v.use = cur.agents[cur.active].profile;
     sendForm(v, false, nullptr);
@@ -264,6 +292,13 @@ static void onSave() {
     in.open = server.hasArg("open");
     in.hermes = server.arg("hermes").c_str();
     in.shim = server.arg("shim").c_str();
+    in.backendSet = server.hasArg("backend");
+    in.backend = server.arg("backend").c_str();
+    // Disabled inputs don't submit: an absent backend host keeps the stored
+    // one (and its key) instead of silently resetting to the default.
+    in.venice = server.hasArg("venice") ? server.arg("venice").c_str()
+                                        : settingsStored().venice;
+    in.veniceKey = server.arg("venicekey").c_str();
     in.useSet = server.hasArg("use");
     in.use = server.arg("use").c_str();
     for (size_t i = 0; i < MAX_AGENTS; i++) {
@@ -281,6 +316,7 @@ static void onSave() {
     if (err) {
         in.pass.clear();
         if (!paired) in.addKey.clear();
+        in.veniceKey.clear();                    // keys are write-only
         sendForm(in, paired, err);
         return;
     }

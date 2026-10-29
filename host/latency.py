@@ -71,7 +71,7 @@ def run_turn(dev, question):
         if any(l.startswith("[Bench] ask refused") for l in lines):
             return {"error": "refused (device not idle)"}
         done = any(l.startswith("[Speak] end") for l in lines)
-        failed = next((l for l in lines if "Hermes unreachable" in l or "[TTSF] chunk" in l
+        failed = next((l for l in lines if "Backend unreachable" in l or "[TTSF] chunk" in l
                        and "failed" in l), None)
         if done or failed:
             time.sleep(0.3)

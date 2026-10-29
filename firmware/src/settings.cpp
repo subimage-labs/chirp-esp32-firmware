@@ -21,6 +21,10 @@ static bool recordFromJson(const char* json, DeviceSettings& out) {
     out.pass = doc["pass"] | "";
     out.hermes = doc["hermes"] | "";
     out.shim = doc["shim"] | "";
+    out.backend = doc["backend"] | "local";
+    out.venice = doc["venice"] | "";
+    if (out.venice.empty()) out.venice = VENICE_HOST_DEFAULT;
+    out.veniceKey = doc["veniceKey"] | "";
     out.agents.clear();
     for (JsonObject a : doc["agents"].as<JsonArray>())
         out.agents.push_back(Agent{a["profile"] | "", a["key"] | "", a["look"] | ""});
@@ -34,6 +38,9 @@ static String toJson(const DeviceSettings& s) {
     doc["pass"] = s.pass.c_str();
     doc["hermes"] = s.hermes.c_str();
     doc["shim"] = s.shim.c_str();
+    doc["backend"] = s.backend.c_str();
+    doc["venice"] = s.venice.c_str();
+    doc["veniceKey"] = s.veniceKey.c_str();
     JsonArray agents = doc["agents"].to<JsonArray>();
     for (const Agent& a : s.agents) {
         JsonObject o = agents.add<JsonObject>();
@@ -62,6 +69,10 @@ bool settingsInputFromJson(const char* json, SettingsInput& out) {
     in.pass = member(doc, "pass", "");             // blank keeps it on the same network
     in.hermes = member(doc, "hermes", stored.hermes);
     in.shim = member(doc, "shim", stored.shim);
+    in.backend = member(doc, "backend", stored.backend.empty() ? "local" : stored.backend);
+    in.backendSet = doc["backend"].is<const char*>();
+    in.venice = member(doc, "venice", stored.venice);
+    in.veniceKey = member(doc, "veniceKey", "");
     in.addProfile = member(doc, "profile", "");
     in.addKey = member(doc, "key", "");
     in.lookSet = doc["look"].is<const char*>();
@@ -76,8 +87,24 @@ bool settingsInputFromJson(const char* json, SettingsInput& out) {
 }
 
 static void deriveEndpoints() {
+    if (stored.backend == "venice") {
+        HostPort vp{"", 0, Scheme::Https};
+        parseHostPort(stored.venice, VENICE_PORT_DEFAULT, vp);
+        const String base = String(hostSchemeString(vp).c_str()) + "/api/v1";
+        endpoints.chatUrl = base + "/chat/completions";
+        endpoints.sttUrl = base + "/audio/transcriptions";
+        endpoints.ttsUrl = base + "/audio/speech";
+        endpoints.shimHealthUrl = base + "/models";       // the self-test probe
+        endpoints.sessionsUrl = "";                       // no server sessions
+        endpoints.otaManifestUrl = "";                    // no shim: USB-only updates
+        endpoints.otaBinUrl = "";
+        endpoints.shimHost = vp.host.c_str();
+        endpoints.shimPort = vp.port;
+        endpoints.auth = String("Bearer ") + stored.veniceKey.c_str();
+        return;
+    }
     const Agent& agent = stored.agents[stored.active];
-    HostPort hermes{"", 0}, shim{"", 0};
+    HostPort hermes{"", 0, Scheme::Bare}, shim{"", 0, Scheme::Bare};
     parseHostPort(stored.hermes, HERMES_PORT_DEFAULT, hermes);
     if (stored.shim.empty() || !parseHostPort(stored.shim, SHIM_PORT_DEFAULT, shim))
         shim = HostPort{hermes.host, SHIM_PORT_DEFAULT};
@@ -106,7 +133,8 @@ void settingsLoad() {
     usable = settingsUsable(stored);
     if (usable) deriveEndpoints();
     Serial.printf("[Settings] %s\n", usable ? "loaded" : "missing or incomplete");
-    if (usable)
+    if (usable) Serial.printf("[Settings] backend %s\n", stored.backend.c_str());
+    if (usable && stored.backend != "venice")
         Serial.printf("[Settings] agent %s (%u of %u)\n",
                       agentLabel(settingsProfile()).c_str(), (unsigned)stored.active + 1,
                       (unsigned)stored.agents.size());
@@ -116,7 +144,8 @@ bool settingsReady() { return usable; }
 const DeviceSettings& settingsStored() { return stored; }
 const Endpoints& settingsEndpoints() { return endpoints; }
 const std::string& settingsProfile() {
-    return usable ? stored.agents[stored.active].profile : NO_PROFILE;
+    return usable && stored.backend != "venice" ? stored.agents[stored.active].profile
+                                                : NO_PROFILE;
 }
 
 bool settingsSave(const DeviceSettings& s) {

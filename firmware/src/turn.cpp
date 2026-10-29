@@ -146,9 +146,14 @@ static void turnTask(void*) {
         turnLatMark("stream_end");
         speechFinish();                           // short answers: the only chunk
         if (end == AskEnd::Stopped) { endTurn(WS_STOPPED, "Stopped"); continue; }
-        if (end == AskEnd::Silent) { endTurn(WS_FAIL, "Hermes not answering"); continue; }
+        if (end == AskEnd::Silent) { endTurn(WS_FAIL, "Backend not answering"); continue; }
+        if (end == AskEnd::BadKey) { endTurn(WS_FAIL, "Bad API key"); continue; }
+        if (end == AskEnd::NoCredit) { endTurn(WS_FAIL, "Out of credit"); continue; }
+        if (end == AskEnd::NotAllowed) { endTurn(WS_FAIL, "Key not allowed"); continue; }
+        if (end == AskEnd::RateLimited) { endTurn(WS_FAIL, "Rate limited"); continue; }
+        if (end == AskEnd::NoClock) { endTurn(WS_FAIL, "Clock not set"); continue; }
         if (end != AskEnd::Answered || speechChunks() == 0) {
-            endTurn(WS_FAIL, "Hermes unreachable");
+            endTurn(WS_FAIL, "Backend unreachable");
             continue;
         }
         Serial.printf("[Timing] hermes=%ums\n[Turn] heard: %s\n[Turn] answer: %s\n",

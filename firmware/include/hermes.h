@@ -32,6 +32,11 @@ enum class AskEnd : uint8_t {
     Silent,        // connected, but no data event for SSE_IDLE_LIMIT_MS (the
                    // gateway's keepalive comments don't count)
     Stopped,       // stopped() returned true
+    BadKey,        // venice: 401 — the stored key is wrong or revoked
+    NoCredit,      // venice: 402 — the prepaid balance is spent
+    NotAllowed,    // venice: 403 — the key's IP allowlist rejected us
+    RateLimited,   // venice: 429 — the rate limit or the failure budget
+    NoClock,       // venice: no valid time for the certificate checks
 };
 AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*stopped)());
 
