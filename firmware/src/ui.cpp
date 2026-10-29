@@ -587,6 +587,27 @@ void uiPanelInvert(bool on) {
     Serial.printf("[Bench] panel invert %s\n", on ? "on" : "off");
 }
 
+void uiPanelReg(uint8_t cmd, const uint8_t* data, int n) {
+    tft.writecommand(cmd);
+    for (int i = 0; i < n; i++) tft.writedata(data[i]);
+    Serial.printf("[Bench] panel reg %02X +%d bytes\n", cmd, n);
+}
+
+void uiPanelTest(bool checker, bool shifted) {
+    chatValid = false;                         // painted over: the next render is whole
+    stripValid = false;
+    if (!checker) {
+        tft.fillScreen(0x8410);                // mid-gray
+    } else {
+        const int cell = 40, off = shifted ? cell / 2 : 0;
+        for (int y = -off; y < tft.height(); y += cell)
+            for (int x = -off; x < tft.width(); x += cell)
+                tft.fillRect(x, y, cell, cell,
+                             ((((x + off) / cell) + ((y + off) / cell)) & 1) ? TFT_WHITE : TFT_BLACK);
+    }
+    Serial.printf("[Bench] panel test %s%s\n", checker ? "checker" : "gray", shifted ? " 1" : "");
+}
+
 // Reads `bits` bits after command `cmd`, bit-banged on the panel's one
 // bidirectional data line (SDA = TFT_MOSI): SCK and MOSI leave the SPI
 // peripheral for the read and are attached back after it.

@@ -103,9 +103,6 @@ inline void TFT_eSPI::end_tft_write(void){
     if (!locked) {          // Locked when beginTransaction has been called
       locked = true;        // Flag to show SPI access now locked
       SPI_BUSY_CHECK;       // Check send complete and clean out unused rx data
-#if defined (TFT_HOLD_INVON)  // chirp: re-assert inversion after every write (setup file says why)
-      DC_C; tft_Write_8(TFT_INVON); DC_D;
-#endif
       CS_H;
       SET_BUS_READ_MODE;    // In case bus has been configured for tx only
 #if defined (SPI_HAS_TRANSACTION) && defined (SUPPORT_TRANSACTIONS) && !defined(TFT_PARALLEL_8_BIT) && !defined(RP2040_PIO_INTERFACE)
