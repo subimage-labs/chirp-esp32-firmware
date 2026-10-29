@@ -60,6 +60,8 @@ void uiTick();                          // loop: advances a scrolling status tex
 #ifdef BENCH_CMDS
 void uiPanelInvert(bool on);            // send INVON / INVOFF (bench.h)
 void uiPanelStatus();                   // read the panel's status registers (bench.h)
+void uiPanelReg(uint8_t cmd, const uint8_t* data, int n);   // write a panel register live (bench.h)
+void uiPanelTest(bool checker, bool shifted);   // full-screen test pattern (bench.h)
 #endif
 
 // Compact strip (the menus): status text in the small size, no battery.

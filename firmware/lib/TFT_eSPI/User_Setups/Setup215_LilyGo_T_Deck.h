@@ -45,10 +45,6 @@
 #define SMOOTH_FONT
 
 #define SPI_FREQUENCY  40000000
-// The panel's inversion is occasionally switched off by the pixel data itself
-// (a vertical light band on menu redraws; data-dependent, not SPI-speed
-// dependent: measured at 40 and 27 MHz). Re-assert INVON after every write.
-#define TFT_HOLD_INVON
 
 #define SPI_READ_FREQUENCY  20000000
 

@@ -198,6 +198,21 @@ void benchRun(String line) {
         uiPanelInvert(line.endsWith("on"));
     } else if (line == "panel status") {
         uiPanelStatus();
+    } else if (line.startsWith("panel reg ")) {
+        uint8_t b[16];
+        int n = 0;
+        char* p = (char*)line.c_str() + 10;
+        const uint8_t cmd = (uint8_t)strtol(p, &p, 16);
+        while (n < 16 && *p) {
+            char* q;
+            const long v = strtol(p, &q, 16);
+            if (q == p) break;
+            b[n++] = (uint8_t)v;
+            p = q;
+        }
+        uiPanelReg(cmd, b, n);
+    } else if (line == "panel test gray" || line.startsWith("panel test checker")) {
+        uiPanelTest(line.indexOf("checker") > 0, line.endsWith(" 1"));
     } else if (line == "view character" || line == "view transcript") {
         characterSetOn(line.endsWith("character"));
         if (!menuOpen()) appRedraw();
