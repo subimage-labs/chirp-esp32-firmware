@@ -28,10 +28,13 @@ static BatteryView batteryShown;                  // what ui last got
 
 static void backlightSet(Backlight b) {
     if (b == backlightNow) return;
+    const bool wasOff = backlightNow == Backlight::Off;
     backlightNow = b;
+    if (wasOff) uiPanelBlank(false);             // the frame it kept, before the light comes on
     uiBacklight(b == Backlight::Full  ? 255
                 : b == Backlight::Dim ? BACKLIGHT_DIM_DUTY
                                       : 0);
+    if (b == Backlight::Off) uiPanelBlank(true);  // not just dark: not driving the image
     Serial.printf("[Power] backlight %s\n", b == Backlight::Full  ? "full"
                                             : b == Backlight::Dim ? "dim"
                                                                   : "off");

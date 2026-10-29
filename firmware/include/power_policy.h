@@ -7,7 +7,9 @@
 //          wake) → deep sleep (deepMs: reboot on wake). Slow animation is not
 //          a backlight level: animated screens drop to a trickle frame rate
 //          well before the screen dims, and any activity restores it.
-// Usb:     screen pinned on, full-rate animation, never sleeps.
+// Usb:     the same screen timeline (Dim, then Off: an idle static screen
+//          would otherwise ghost on the panel; any input restores it),
+//          full-rate animation, never sleeps.
 // Unknown: charger unreadable (or not yet read): the screen timeline runs
 //          (reversible by any input) but sleep is inhibited until a valid
 //          battery reading — a read fault must never sleep a device that
@@ -39,7 +41,6 @@ public:
 
     // Unsigned subtraction: correct across the 49-day millis() wrap.
     Backlight backlight(uint32_t now) const {
-        if (source_ == PowerSource::Usb) return Backlight::Full;
         const uint32_t idle = now - last_;
         if (idle >= offMs_) return Backlight::Off;
         if (idle >= dimMs_) return Backlight::Dim;

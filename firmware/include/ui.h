@@ -18,6 +18,10 @@ void uiBegin();                 // panel init, rotation, saved theme, backlight 
 void uiPanelOff();              // DISPOFF + SLPIN, backlight pin driven low and held
 void uiPanelOn();               // re-init after uiPanelOff (panel may have lost power)
 void uiBacklight(uint8_t duty); // 0..255
+// The panel stops (or resumes) driving its pixels; its frame memory stays, so
+// resuming shows the current screen at once. An idle screen blanks this way:
+// a static image the panel keeps driving ghosts.
+void uiPanelBlank(bool off);
 
 TFT_eSPI& uiTft();              // for screens that draw themselves (menu, portal)
 void uiPanelHold();             // loop, after drawing: re-sends the panel's inversion (ui.cpp)

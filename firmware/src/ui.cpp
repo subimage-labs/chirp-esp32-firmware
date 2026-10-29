@@ -412,6 +412,7 @@ void uiPanelOn() {
 }
 
 void uiBacklight(uint8_t duty) { ledcWrite(BL_LEDC_CH, duty); }
+void uiPanelBlank(bool off) { tft.writecommand(off ? TFT_DISPOFF : TFT_DISPON); }
 
 TFT_eSPI& uiTft() { return tft; }
 int uiContentTop() { return CONTENT_Y; }          // the menus' top; the chat has its own (topY)
