@@ -489,6 +489,22 @@ void menuNext() {
     closeMenu();
 }
 
+void menuPrev() {
+    for (size_t i = 1; i < TAB_COUNT; i++) {
+        if (tab == TABS[i].tab) {
+            enterTab(TABS[i - 1].tab);
+            return;
+        }
+    }
+    menuClose();
+}
+
+void menuClose() {
+    if (tab == Tab::None) return;
+    if (tab == Tab::Chirper) characterPreviewEnd();   // back to the kept character
+    closeMenu();
+}
+
 // Slow clicks step one title (every row reachable); a spin moves two.
 void menuMove(int32_t clicks, uint32_t perClickMs) {
     if (tab == Tab::Theme) {

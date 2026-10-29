@@ -30,3 +30,8 @@
 #ifndef CHIRP_COMPOSE
 #define CHIRP_COMPOSE 0
 #endif
+// A side tap in the menu picks the row (the board steps tabs some other way)
+// instead of stepping to the next tab.
+#ifndef CHIRP_SIDE_SELECTS
+#define CHIRP_SIDE_SELECTS 0
+#endif

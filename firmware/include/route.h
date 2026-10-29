@@ -27,6 +27,7 @@ enum class Act : uint8_t {
     DeferVoice,          // worker owns the capture: toggle after the turn
     MenuActivate,
     MenuNext,            // side tap in the menu: next tab, then back to chat
+    MenuPrev,            // a tab flick back: the tab before, from the first back to chat
     OpenMenu,
     StopTurn,            // side tap while the worker runs: end the turn
     VolumeMode,
@@ -79,8 +80,18 @@ inline Act route(const InputEvent& ev, const RouteCtx& c) {
         if (ev.chord) return Act::ToggleView;       // the chord, in any state
         if (ev.heldMs >= c.holdMs + 60) return Act::None;
         return c.state == UI_THINKING ? Act::StopTurn : Act::OpenMenu;
+    case InputType::Tab:                            // flicks change tabs; outside the menu, nothing
+        if (!c.menu) return Act::None;
+        return ev.clicks > 0 ? Act::MenuNext : Act::MenuPrev;
     }
     return Act::None;
+}
+
+// Boards whose side key is a trackball click (board.h CHIRP_SIDE_SELECTS):
+// a side tap in the menu picks the row, and tabs change by flicks (Tab).
+inline Act routeSideSelects(const InputEvent& ev, const RouteCtx& c) {
+    if (ev.type == InputType::SideRelease && c.menu && !c.holdActed) return Act::MenuActivate;
+    return route(ev, c);
 }
 
 // A deferred voice toggle applies once the worker no longer owns the capture.

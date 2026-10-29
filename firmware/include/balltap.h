@@ -1,9 +1,9 @@
-// balltap.h — the trackball's sideways roll as side-key taps, for boards
-// without a side key (T-Deck: roll right = a side tap). A flick is a burst
-// of pulses: a burst of at least MIN_PULSES is one tap, and the next tap
-// needs QUIET_MS without pulses first, so one flick never counts twice and a
-// stray pulse while scrolling counts as nothing. Pure; host-tested
-// (balltap_test.cpp). Loop task only (input.cpp).
+// balltap.h — a sideways trackball flick as one step (T-Deck: right = next
+// menu tab, left = the one before; input.cpp keeps one per direction). A
+// flick is a burst of pulses: a burst of at least MIN_PULSES is one step,
+// and the next needs QUIET_MS without pulses first, so one flick never counts
+// twice and a stray pulse while scrolling counts as nothing. Pure;
+// host-tested (balltap_test.cpp). Loop task only (input.cpp).
 #pragma once
 
 #include <stdint.h>

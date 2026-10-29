@@ -1,5 +1,5 @@
-// balltap_test.cpp — sideways trackball flicks become side-key taps: one per
-// flick, none for a stray pulse, three for three flicks (the setup gesture).
+// balltap_test.cpp — sideways trackball flicks become tab steps: one per
+// flick, none for a stray pulse, three for three flicks with pauses.
 // Run: firmware/test/host/run.sh
 #include "balltap.h"
 

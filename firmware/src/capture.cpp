@@ -58,6 +58,12 @@ bool micInstall() {
 #if CHIRP_MIC_ES7210
     // The codec sits on the keyboard's I2C bus (keyboardBegin started it)
     // and clocks from our I2S0: S3 master, ES7210 slave, MCLK 256 x fs.
+    // All four inputs powered, as LILYGO's own example does: selecting only
+    // MIC1/2 switches the ADC3/4 clocks off (REG01 = 0x14), and the T-Deck's
+    // microphone then reads as exact zeros (measured). Its signal arrives in
+    // the left slot (measured in stereo: speech there; the right slot, read
+    // as ONLY_RIGHT, has half the noise floor and no speech). Mono keeps the
+    // DMA buffers at their 8 KB of internal RAM.
     audio_hal_codec_config_t cfg = {};
     cfg.adc_input = AUDIO_HAL_ADC_INPUT_ALL;
     cfg.codec_mode = AUDIO_HAL_CODEC_MODE_ENCODE;
@@ -67,15 +73,16 @@ bool micInstall() {
     cfg.i2s_iface.bits = AUDIO_HAL_BIT_LENGTH_16BITS;
     if (es7210_adc_init(&Wire, &cfg) != ESP_OK) return false;
     if (es7210_adc_config_i2s(cfg.codec_mode, &cfg.i2s_iface) != ESP_OK) return false;
-    if (es7210_mic_select((es7210_input_mics_t)ES7210_INPUT_MIC1) != ESP_OK) return false;
-    if (es7210_adc_set_gain((es7210_input_mics_t)ES7210_INPUT_MIC1, GAIN_30DB) != ESP_OK)
-        return false;
+    const es7210_input_mics_t mics = (es7210_input_mics_t)(ES7210_INPUT_MIC1 | ES7210_INPUT_MIC2 |
+                                                           ES7210_INPUT_MIC3 | ES7210_INPUT_MIC4);
+    if (es7210_mic_select(mics) != ESP_OK) return false;
+    if (es7210_adc_set_gain(mics, GAIN_30DB) != ESP_OK) return false;
     if (es7210_adc_ctrl_state(cfg.codec_mode, AUDIO_HAL_CTRL_START) != ESP_OK) return false;
     i2s_config_t icfg = {};
     icfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX);
     icfg.sample_rate = SAMPLE_RATE;
     icfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
-    icfg.channel_format = I2S_CHANNEL_FMT_ONLY_LEFT;   // SDOUT1's slot: MIC1, mono
+    icfg.channel_format = I2S_CHANNEL_FMT_ONLY_LEFT;   // the microphone's slot (see above)
     icfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
     icfg.intr_alloc_flags = ESP_INTR_FLAG_LEVEL2;
     icfg.dma_buf_count = MIC_DMA_BUFS;
@@ -129,6 +136,7 @@ bool micInstalled() { return micUp; }
 size_t micRead(int16_t* buf, size_t bytes, uint32_t timeoutMs) {
     size_t br = 0;
     if (i2s_read(MIC_PORT, buf, bytes, &br, pdMS_TO_TICKS(timeoutMs)) != ESP_OK) return 0;
+#if !CHIRP_MIC_ES7210
     const size_t n = br / 2;
     for (size_t i = 0; i < n; i++) {               // software gain for the PDM mic
         int32_t s = (int32_t)buf[i] * MIC_GAIN;
@@ -136,6 +144,7 @@ size_t micRead(int16_t* buf, size_t bytes, uint32_t timeoutMs) {
         else if (s < -32768) s = -32768;
         buf[i] = (int16_t)s;
     }
+#endif
     return br;
 }
 

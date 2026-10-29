@@ -38,11 +38,19 @@ static void backlightSet(Backlight b) {
 }
 
 #if CHIRP_BATTERY_ADC
-// The battery sits on a divider behind an ADC pin; there is no charger to
-// talk to, so USB presence is unknown and the policy treats the device as
-// battery-powered (it sleeps when idle; any key wakes it).
+// The battery sits on a divider behind an ADC pin, with no charger to ask
+// about USB power. The S3's own USB block answers the part that matters: a
+// USB host sends a frame every millisecond (HWCDC::isPlugged), so Usb while
+// one is attached (no sleep, like a charger-reported USB). A charger-only
+// plug sends no frames and counts as battery: the device sleeps, any key
+// wakes it. Changes are logged.
 static PowerSource readSource(bool) {
-    return gauge.known() ? PowerSource::Battery : PowerSource::Unknown;
+    const PowerSource prev = source;
+    source = HWCDC::isPlugged() ? PowerSource::Usb
+             : gauge.known()    ? PowerSource::Battery
+                                : PowerSource::Unknown;
+    if (source != prev) Serial.printf("[Power] source %s\n", powerSourceName());
+    return source;
 }
 #else
 static int chargerRead(uint8_t reg) {

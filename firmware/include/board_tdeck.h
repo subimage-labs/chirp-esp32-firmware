@@ -28,7 +28,6 @@
 #define MIC_DIN_PIN      14
 #define MIC_MCLK_PIN     48       // 256 x fs (4.096 MHz at 16 kHz)
 #define MIC_PORT         I2S_NUM_0
-#define MIC_GAIN         1        // codec PGA does the gain (set in capture.cpp)
 
 // --- Speaker (I2S1 TX, ESP32-audioI2S) ---
 #define SPK_BCLK_PIN     7
@@ -36,14 +35,17 @@
 #define SPK_DIN_PIN      6
 
 // --- Controls ---
-// The trackball does every button's job (the keyboard only types: it has no
-// release codes, so no key can be held): click = the encoder key (hold to
-// talk, double-tap = voice mode), roll up/down = the wheel, roll right =
-// side-key taps (balltap.h). There is no side-key hold (volume mode).
-#define PTT_BTN_PIN      -1      // no side key: the trackball's roll right stands in
+// The keyboard's mic key is the encoder key (hold to talk, double-tap =
+// voice mode); keyboard.h reads it from the key matrix, so it has no pin.
+// The trackball click is the side key: tap = menu, and in the menu it picks
+// (CHIRP_SIDE_SELECTS); hold + roll = volume. Roll up/down = the wheel;
+// flick left/right = the previous/next menu tab (balltap.h). Keys type;
+// Enter sends (picks in the menu), Backspace leaves the menu.
+#define PTT_BTN_PIN      0       // trackball click (GPIO0, the BOOT strap)
 #define ENCODER_A_PIN    -1      // no wheel: the trackball feeds the same events
 #define ENCODER_B_PIN    -1
-#define ENCODER_BTN_PIN  0       // trackball click (shares GPIO0/BOOT with the mic)
+#define ENCODER_BTN_PIN  -1      // the mic key, over I2C (keyboardMicDown)
+#define CHIRP_SIDE_SELECTS 1     // a side tap in the menu picks; tabs change by flicks
 
 // --- Trackball ---
 #define TRACKBALL_UP_PIN    3
@@ -51,7 +53,8 @@
 #define TRACKBALL_LEFT_PIN  1
 #define TRACKBALL_RIGHT_PIN 2
 
-// --- Keyboard (LILYGO's keyboard firmware on the ESP32-C3, I2C; polled) ---
+// --- Keyboard (LILYGO's keyboard firmware on the ESP32-C3, I2C, raw mode:
+// needs its 2025-06 firmware or later, which reports keys held) ---
 #define KBD_I2C_ADDR     0x55
 
 // --- Board ---
@@ -62,13 +65,13 @@
 #define BAT_ADC_DIV      2
 
 // Keys that may wake the chip from deep sleep (RTC-capable, active low).
-#define CHIRP_WAKE_KEYS {ENCODER_BTN_PIN}
+#define CHIRP_WAKE_KEYS {PTT_BTN_PIN}
 
 // The two controls' names in the hints ("Ball=select  Click=open").
 #define CHIRP_TURN "Ball"
 #define CHIRP_PRESS "Click"
-#define CHIRP_SIDE "roll right"   // the side key's taps (balltap.h)
+#define CHIRP_WIFI_HELP "WiFi failed: Click, then Setup tab"
 
 // The READY screen's hint lines.
-#define CHIRP_HINT1 "Hold the ball to talk"
+#define CHIRP_HINT1 "Hold the mic key to talk"
 #define CHIRP_HINT2 "Type, enter to send"

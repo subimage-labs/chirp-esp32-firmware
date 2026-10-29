@@ -216,6 +216,9 @@ static void doAct(Act a, const InputEvent& ev) {
     case Act::MenuNext:
         menuNext();
         break;
+    case Act::MenuPrev:
+        menuPrev();
+        break;
     case Act::OpenMenu:
         openMenu();
         break;
@@ -260,7 +263,7 @@ static void dispatch(const InputEvent& ev) {
                        sideHoldActed,
                        BTN_HOLD_MS,
                        BTN_TAP_MS};
-    doAct(route(ev, ctx), ev);
+    doAct(CHIRP_SIDE_SELECTS ? routeSideSelects(ev, ctx) : route(ev, ctx), ev);
 }
 
 // A voice toggle deferred during THINKING applies once the worker has handed
@@ -337,7 +340,7 @@ void setup() {
     } else {
         Serial.println("[WiFi] join failed, retrying in background");
         selfTestRun();                             // logs the result for host/pair.py
-        uiMsg("WiFi failed; " CHIRP_SIDE " 3x = Setup", Ink::Err);
+        uiMsg(CHIRP_WIFI_HELP, Ink::Err);
         speechErrorTone();
     }
     transcriptRender();                            // boot into the READY screen
@@ -379,19 +382,18 @@ static void keyboardTick() {
                 composeSync();
             }
             break;
-        case KbdEv::Backspace:
-            if (compose.backspace()) composeSync();
+        case KbdEv::Backspace:                    // in the menu: straight back to chat
+            if (menuOpen()) menuClose();
+            else if (compose.backspace()) composeSync();
             break;
-        case KbdEv::Enter:
-            if (!compose.empty() && uiState == UI_IDLE && !menuOpen() &&
-                WiFi.status() == WL_CONNECTED) {
+        case KbdEv::Enter:                        // in the menu: pick the row
+            if (menuOpen()) {
+                menuActivate();
+            } else if (!compose.empty() && uiState == UI_IDLE && WiFi.status() == WL_CONNECTED) {
                 turnAskText(String(compose.text()));
                 compose.clear();
                 composeSync();
             }
-            break;
-        case KbdEv::Raw:
-            Serial.printf("[Kbd] unhandled key %02X\n", ev.raw);
             break;
         default:
             break;
