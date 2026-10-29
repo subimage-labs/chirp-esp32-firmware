@@ -13,7 +13,7 @@ starting it), the device idle on the chat screen with no menu open.
 Checks (one table row each):
   boot         [SelfTest] ok and [OTA] running <version> in the log
   status       the status line parses; wifi up; volume 0 took
-  tabs         side taps walk chat > Chats > Theme > Chirper > Text > Setup > chat
+  tabs         side taps (tab flicks on sidesel=1 boards) walk chat > Chats > Theme > Chirper > Text > Setup > chat
   theme        wheel changes the theme, encoder flips light/dark, restored
   panel        every theme, dark and light, applied from the Theme tab: the panel's
                own inversion bit (`panel status`, RDDIM read back) stays on, also
@@ -361,6 +361,7 @@ class Smoke:
         self.rows = []
         self.start_pos = log_size()
         self.start = None               # the device's state when the run began
+        self.sidesel = False            # status sidesel=1: tabs step by flicks (`tab 1`)
         self.reboot_pos = None          # log offset where the esptool reset began
         self.theme_count = 6            # themes; the Theme tab's row count replaces it
         self.start_look = None          # the starting kept look's record (hex), unless `orig`
@@ -377,6 +378,15 @@ class Smoke:
     def tap(self, key, hold=0.2, after=0.5):
         self.send(f"{key} down", hold)
         self.send(f"{key} up", after)
+
+    def step(self, menu):
+        """One step along chat > tabs > chat from `menu`: a side tap, except
+        inside the menu on boards whose side tap picks there (status
+        `sidesel=1`, the T-Deck), which step tabs by flicks (`tab 1`)."""
+        if menu != "none" and self.sidesel:
+            self.send("tab 1", 0.5)
+        else:
+            self.tap("side")
 
     def wait_lines(self, pred, pos, timeout, poll=0.25):
         """Poll the log after `pos` until pred(lines) is truthy; -> (lines, ok)."""
@@ -419,12 +429,12 @@ class Smoke:
                 f"look={st.get('look')}")
 
     def goto(self, tab):
-        """Side taps (wrapping through the chat) until the menu shows `tab`."""
+        """Steps (wrapping through the chat) until the menu shows `tab`."""
         st = self.status()
         for _ in range(len(TABS)):
             if st["menu"] == tab:
                 return st
-            self.tap("side")
+            self.step(st["menu"])
             st = self.until(lambda s, was=st["menu"]: s["menu"] != was, TAB_WAIT_S, "next tab")
         raise Check(f"cannot reach tab {tab}; menu={st['menu']}")
 
@@ -478,7 +488,7 @@ class Smoke:
         if seen[0] != "none":
             raise Check(f"menu already open: {seen[0]}")
         for want in TABS[1:]:
-            self.tap("side")
+            self.step(seen[-1])
             st = self.until(lambda s, w=want: s["menu"] == w, TAB_WAIT_S, f"tab {want}")
             seen.append(st["menu"])
         return " > ".join("chat" if m == "none" else m for m in seen)
@@ -577,7 +587,7 @@ class Smoke:
         k1, s1 = tag_pair(st1, "look")
         if k1 != kept:
             raise Check(f"browsing changed the kept look {kept} -> {k1}")
-        self.tap("side")                                 # leave without keeping
+        self.step("chirper")                             # leave without keeping
         st2 = self.until(lambda s: s["menu"] != "chirper", TAB_WAIT_S, "leave chirper")
         k2, s2 = tag_pair(st2, "look")
         if (k2, s2) != (kept, kept):
@@ -630,7 +640,7 @@ class Smoke:
         for _ in range(len(TABS)):
             if st["menu"] == "none":
                 return st
-            self.tap("side")
+            self.step(st["menu"])
             st = self.until(lambda s, was=st["menu"]: s["menu"] != was, TAB_WAIT_S, "leave menu")
         raise Check("menu will not close")
 
@@ -783,6 +793,7 @@ class Smoke:
                                               " (flash a current bench build)"})
                 return
             self.start = state_of(st)
+            self.sidesel = st.get("sidesel") == "1"
             if self.start["look"] != "orig":
                 self.start_look = self.kept_hex()          # restored exactly at the end
             self.check("status", self.c_status)
