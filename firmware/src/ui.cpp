@@ -778,7 +778,10 @@ static ui_layout::Chat chatLay() {
     return ui_layout::chatLayout(tft.width(), tft.height(), CONTENT_Y, contentBottom() - composeH(),
                                  CHIRP_BANNER);
 }
-static bool companionShown() { return CHIRP_BANNER && !characterOn(); }
+// The intro screen (nothing said yet, no turn in flight) is the logo and the
+// hints across the whole width; the companion joins once something happens.
+static bool introShown() { return history.empty() && !pendingActive; }
+static bool companionShown() { return CHIRP_BANNER && !characterOn() && !introShown(); }
 // The first transcript row: under a top band when it shows, with the taller
 // panels' margin (ui_layout.h ROOMY_TOP) either way.
 static int topY() {
@@ -788,6 +791,10 @@ static int topY() {
 }
 static int chatX0() { return chatLay().chat.x; }
 static int chatX1() { return chatLay().chat.right(); }
+// What the empty screen and the live row span: the whole width on the intro
+// screen, the chat otherwise. Rows keep the chat's (they wrap once to it).
+static int viewX0() { return introShown() ? 0 : chatX0(); }
+static int viewX1() { return introShown() ? tft.width() : chatX1(); }
 
 ui_layout::Companion uiCompanion(ui_layout::Rect& area, int& scale) {
     const ui_layout::Chat c = chatLay();
@@ -808,13 +815,13 @@ static int liveHalfMax() {
 
 static void paintLive(bool full) {
     if (liveRow == LiveRow::None || characterOn() || !sprReady) return;
-    const int right = chatX1() - 12;
+    const int right = viewX1() - 12;
     const int mid = (liveAreaTop() + liveAreaBottom()) / 2, hmax = liveHalfMax();
     const uint16_t bg = uiInk(Ink::Bg);
     if (full) {
-        tft.fillRect(chatX0(), liveTop, chatX1() - chatX0(), liveAreaBottom() - liveTop, bg);
+        tft.fillRect(viewX0(), liveTop, viewX1() - viewX0(), liveAreaBottom() - liveTop, bg);
         if (liveRow != LiveRow::Wave)                 // the wave belongs to the answer above it
-            tft.drawFastHLine(chatX0(), liveTop + 1, chatX1() - chatX0(), uiInk(Ink::Muted));
+            tft.drawFastHLine(viewX0(), liveTop + 1, viewX1() - viewX0(), uiInk(Ink::Muted));
         memset(liveBarShown, 0xFF, sizeof liveBarShown);
         liveDotShown = -1;
     }
@@ -830,7 +837,7 @@ static void paintLive(bool full) {
     }
     const LiveBars b = liveBars();
     const int span = b.count * (b.w + b.gap) - b.gap;
-    const int x0 = b.right ? right - span : chatX0() + 6;
+    const int x0 = b.right ? right - span : viewX0() + 6;
     const uint16_t c = uiInk(b.ink);
     for (int i = 0; i < b.count; i++) {
         if (liveBarShown[i] == liveBar[i]) continue;
@@ -1030,21 +1037,21 @@ void transcriptRender() {
         }
         chatValid = false;                         // the first row repaints whole over the logo
         const int bottom = areaBottom();
-        tft.fillRect(chatX0(), topY(), chatX1() - chatX0(), bottom - topY(), bg);
+        tft.fillRect(viewX0(), topY(), viewX1() - viewX0(), bottom - topY(), bg);
         // The logo as large as fits with the hints and a live row under them;
         // the group is centred in the space above the live row, so it moves up
         // only once something happens (you talk, voice mode waits), and keeps
         // its size.
         const int hintsH = 2 * metrics.line, gap = 10;
-        const int cx0 = chatX0(), cw = chatX1() - cx0;
+        const int cx0 = viewX0(), cw = viewX1() - cx0;
         const int scale = logoScaleFor(cw - 12,
                                        bottom - topY() - hintsH - gap - metrics.line - 4);
         const int logoH = logoHeight(scale);
         const int top = topY() + max(0, (textBottom() - topY() - logoH - gap - hintsH) / 2);
         logoDraw(cx0 + (cw - logoWidth(scale)) / 2, top, scale);
         uiFont(UiFont::Body);
-        const char* h1 = CHIRP_HINT1;
-        const char* h2 = CHIRP_HINT2;
+        const String h1 = uiFit(CHIRP_HINT1, cw - 12);   // a wide font never runs past the area
+        const String h2 = uiFit(CHIRP_HINT2, cw - 12);
         const int hy = top + logoH + gap;
         uiText(h1, cx0 + (cw - uiTextWidth(h1)) / 2, hy, Ink::Muted, Ink::Bg);
         uiText(h2, cx0 + (cw - uiTextWidth(h2)) / 2, hy + metrics.line, Ink::Muted, Ink::Bg);
