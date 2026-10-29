@@ -88,10 +88,12 @@ static void activityRestartsTimeline() {
     CHECK(p.sleepDue(LIGHT + 5 + LIGHT - 1) == SleepDue::None);
 }
 
-static void usbPinsScreenOnAndNeverSleeps() {
+// USB: the screen dims and turns off when idle (a static screen ghosts on the
+// panel), but the device never sleeps.
+static void usbDimsAndBlanksButNeverSleeps() {
     PowerPolicy p = make();
     p.setSource(PS::Usb, 0);
-    CHECK(p.backlight(DEEP * 10) == Backlight::Full);
+    CHECK(p.backlight(DIM) == Backlight::Dim && p.backlight(DEEP * 10) == Backlight::Off);
     CHECK(p.sleepDue(DEEP * 10) == SleepDue::None);
 }
 
@@ -132,7 +134,7 @@ static void usbReadFaultThenRecovery() {
     CHECK(p.sleepDue(fault + DEEP * 5) == SleepDue::None);
     const uint32_t back = fault + DEEP * 5;
     p.setSource(PS::Usb, back);
-    CHECK(p.backlight(back + DEEP) == Backlight::Full);
+    CHECK(p.backlight(back + DIM - 1) == Backlight::Full);   // clock restarted on the change
     CHECK(p.sleepDue(back + DEEP) == SleepDue::None);
 }
 
@@ -188,7 +190,7 @@ int main() {
     animationRestartsOnUnplugAndWrap();
     lightSleepTimerTargetsDeepThreshold();
     activityRestartsTimeline();
-    usbPinsScreenOnAndNeverSleeps();
+    usbDimsAndBlanksButNeverSleeps();
     unplugRestartsIdleClock();
     steadyReadingIsNotActivity();
     bootReadFailureNeverSleeps();
