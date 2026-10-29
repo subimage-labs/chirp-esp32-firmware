@@ -39,6 +39,12 @@ static String shimmerLabel;
 // invalid strip (after uiClear, a font change or a compact switch) is cleared
 // whole.
 static bool stripValid = false;
+// The chat view (companion, rows) is on screen whole: transcriptRender then
+// repaints each row in place instead of clearing the area first, so a
+// streaming answer never blanks the screen between updates. Invalid after
+// anything painted over it: uiClear, a menu (uiStatusCompact), a font change,
+// the character view, the empty-chat screen.
+static bool chatValid = false;
 static int labelEnd = 0;
 static String msgShown;
 static Ink msgInk = Ink::Text;
@@ -342,6 +348,7 @@ void uiSetFont(size_t family, uint8_t size) {
     uiFont(UiFont::Body);
     shimmerLabel = "";                           // the strip changed height: repaint it whole
     stripValid = false;
+    chatValid = false;
     layoutStale = true;
     characterTextChanged();
     Serial.printf("[UI] font %s %c line=%d\n", FONT_FAMILIES[family].name,
@@ -413,6 +420,7 @@ int uiStripTop() { return stripValid ? contentBottom() : tft.height(); }
 void uiClear() {
     tft.fillScreen(palette->ink[(int)Ink::Bg]);
     stripValid = false;
+    chatValid = false;
 }
 // ---------------------------------------------------------------- theme
 uint16_t uiInk(Ink ink) {
@@ -514,6 +522,7 @@ void uiStatusCompact(bool on) {
     if (on == stripCompact) return;
     stripCompact = on;
     stripValid = false;                          // repaint whole on the next write
+    chatValid = false;
     msgShown = "";
     tickerOn = false;
 }
@@ -994,25 +1003,34 @@ static void drawScrollbar() {
     tft.fillRect(x, thumbY, 3, thumbH, uiInk(Ink::Muted));
 }
 
-// Single renderer: full clear + redraw of the visible window, pinned to the
-// bottom while following. Callers throttle during streaming; a full repaint
-// every time means no stale rows, ever.
+// Single renderer of the visible window, pinned to the bottom while
+// following. After a transition (chatValid false) it clears the area and
+// paints the companion; otherwise each row repaints in place: its leftover
+// strips first, then the text block over them, so no pixel blanks before
+// its final value and a streaming answer does not flash.
 void transcriptRender() {
     if (characterOn()) {                           // the character view replaces the transcript
+        chatValid = false;
         characterPaint();
         return;
     }
     const int vis = visibleRows();
+    const bool full = !chatValid;
+    const uint16_t bg = uiInk(Ink::Bg);
 #if CHIRP_BANNER
-    characterBannerPaint();                        // the banner, then the area under it
+    bool companionPainted = true;
+    if (full) companionPainted = characterBannerPaint();   // its animation tick keeps it current
+#else
+    const bool companionPainted = true;
 #endif
     if (totalRows() == 0) {                        // empty chat: the logo, then the hints
         if (!stripWanted()) {                      // no strip here: painted over, not kept
             stripValid = false;
             tickerOn = false;
         }
+        chatValid = false;                         // the first row repaints whole over the logo
         const int bottom = areaBottom();
-        tft.fillRect(chatX0(), topY(), chatX1() - chatX0(), bottom - topY(), uiInk(Ink::Bg));
+        tft.fillRect(chatX0(), topY(), chatX1() - chatX0(), bottom - topY(), bg);
         // The logo as large as fits with the hints and a live row under them;
         // the group is centred in the space above the live row, so it moves up
         // only once something happens (you talk, voice mode waits), and keeps
@@ -1040,7 +1058,8 @@ void transcriptRender() {
     int start = follow ? max(0, totalRows() - vis)
                        : constrain(scrollLine, 0, max(0, totalRows() - vis));
     scrollLine = start;
-    tft.fillRect(chatX0(), topY(), chatX1() - chatX0(), areaBottom() - topY(), uiInk(Ink::Bg));
+    const int x0 = chatX0(), x1 = chatX1(), rowEnd = x1 - 4;   // the scrollbar lane paints itself
+    if (full) tft.fillRect(x0, topY(), x1 - x0, areaBottom() - topY(), bg);
     uiFont(UiFont::Body);
     int drawn = 0;
     for (int r = 0; r < vis; r++) {
@@ -1048,20 +1067,30 @@ void transcriptRender() {
         if (!getLogRow(start + r, ln)) break;
         const int y = topY() + r * metrics.line;
         if (ln.kind == 2) {
-            tft.drawFastHLine(chatX0(), y + metrics.line / 2, chatX1() - chatX0(), uiInk(Ink::Muted));
+            if (!full) tft.fillRect(x0, y, rowEnd - x0, metrics.line, bg);
+            tft.drawFastHLine(x0, y + metrics.line / 2, x1 - x0, uiInk(Ink::Muted));
         } else {
             const int tw = uiTextWidth(ln.text);           // the agent left, the owner right
-            uiText(ln.text, ln.kind == 0 ? max(chatX0() + 6, chatX1() - 12 - tw) : chatX0() + 6, y,
-                   ln.kind == 0 ? Ink::Text : Ink::Strong, Ink::Bg);
+            const int x = ln.kind == 0 ? max(x0 + 6, x1 - 12 - tw) : x0 + 6;
+            if (!full) {
+                tft.fillRect(x0, y, x - x0, metrics.line, bg);
+                if (rowEnd > x + tw) tft.fillRect(x + tw, y, rowEnd - (x + tw), metrics.line, bg);
+            }
+            uiText(ln.text, x, y, ln.kind == 0 ? Ink::Text : Ink::Strong, Ink::Bg);
         }
         drawn++;
     }
     liveTop = topY() + drawn * metrics.line;        // the live row: the next line
+    if (!full) {                                    // below the rows: what the live row leaves
+        const int rest = liveRow == LiveRow::None ? liveTop : liveAreaBottom();
+        if (areaBottom() > rest) tft.fillRect(x0, rest, rowEnd - x0, areaBottom() - rest, bg);
+    }
     paintLive(true);
     drawScrollbar();                                // after the live row, which spans the width
 #if CHIRP_COMPOSE
     if (composeOn() && sprReady) composePaint();
 #endif
+    chatValid = companionPainted;                   // no avatar yet: paint it whole next time
 }
 
 // ---------------------------------------------------------------- transcript
