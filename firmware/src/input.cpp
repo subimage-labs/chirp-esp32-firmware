@@ -59,13 +59,20 @@ static bool sideRaw() {
 static void sampleKeys(void*) { keyRing.sample(millis(), encRaw(), sideRaw()); }
 
 // The wheel's detent source: the encoder on wheel boards, the trackball's
-// vertical axis on ball boards (roll up = one clockwise click). A sideways
-// flick is a tab step (balltap.h): right = next, left = the one before.
+// vertical axis on ball boards (roll up = clockwise), CHIRP_BALL_PULSES_PER_STEP
+// pulses per detent (balltap.h). A sideways flick is a tab step: right =
+// next, left = the one before.
 #if CHIRP_HAS_TRACKBALL
 static int32_t ballNet = 0;                  // detents not yet turned into events
+static BallSteps ballSteps(CHIRP_BALL_PULSES_PER_STEP);
 static BallTap flickRight, flickLeft;
 static int32_t ballPosition() {
-    ballNet += trackballUp() - trackballDown();
+    const int32_t up = trackballUp(), down = trackballDown();
+#if defined(BENCH_CMDS) && CHIRP_HAS_KEYBOARD
+    if ((up || down) && keyboardEchoOn())    // bench `keys on`: tuning data
+        Serial.printf("[Ball] t=%lu up=%ld down=%ld\n", (unsigned long)millis(), (long)up, (long)down);
+#endif
+    ballNet += ballSteps.feed(up - down);
     return ballNet;
 }
 #endif

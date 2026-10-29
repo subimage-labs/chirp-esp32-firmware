@@ -7,6 +7,11 @@
 //   chatlist — one-shot session-list task (core 0): the Chats list
 //          (menu.cpp), so a slow gateway never stalls the side key.
 //   keys  — esp_timer task, every 5 ms: samples the two keys (input.cpp).
+//   kbd   — keyboard poll task (core 1, above the loop; keyboard boards):
+//           reads the key matrix every 10 ms (keyboard.cpp); typed keys go
+//           to the loop through a queue, the mic key's level through an
+//           atomic the keys sampler reads. Shares the I2C bus with the mic
+//           codec's setup under i2c_bus.h's lock.
 // Every module's state is owned by exactly one context; each header states
 // which. Cross-context data moves only through the documented handoffs:
 // TurnSnap (turn → loop progressive text), the stage cell and the

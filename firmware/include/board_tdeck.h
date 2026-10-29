@@ -52,6 +52,7 @@
 #define TRACKBALL_DOWN_PIN  15
 #define TRACKBALL_LEFT_PIN  1
 #define TRACKBALL_RIGHT_PIN 2
+#define CHIRP_BALL_PULSES_PER_STEP 2   // trackball pulses per wheel detent (balltap.h)
 
 // --- Keyboard (LILYGO's keyboard firmware on the ESP32-C3, I2C, raw mode:
 // needs its 2025-06 firmware or later, which reports keys held) ---

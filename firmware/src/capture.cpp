@@ -11,6 +11,7 @@
 #include <Wire.h>
 
 #include "es7210.h"
+#include "i2c_bus.h"
 #endif
 
 static uint8_t* wavBuf = nullptr;                 // PSRAM: WAV header + PCM
@@ -71,13 +72,16 @@ bool micInstall() {
     cfg.i2s_iface.fmt = AUDIO_HAL_I2S_NORMAL;
     cfg.i2s_iface.samples = AUDIO_HAL_16K_SAMPLES;
     cfg.i2s_iface.bits = AUDIO_HAL_BIT_LENGTH_16BITS;
-    if (es7210_adc_init(&Wire, &cfg) != ESP_OK) return false;
-    if (es7210_adc_config_i2s(cfg.codec_mode, &cfg.i2s_iface) != ESP_OK) return false;
-    const es7210_input_mics_t mics = (es7210_input_mics_t)(ES7210_INPUT_MIC1 | ES7210_INPUT_MIC2 |
-                                                           ES7210_INPUT_MIC3 | ES7210_INPUT_MIC4);
-    if (es7210_mic_select(mics) != ESP_OK) return false;
-    if (es7210_adc_set_gain(mics, GAIN_30DB) != ESP_OK) return false;
-    if (es7210_adc_ctrl_state(cfg.codec_mode, AUDIO_HAL_CTRL_START) != ESP_OK) return false;
+    {
+        I2cBusLock bus;                            // the keyboard's task reads the same bus
+        if (es7210_adc_init(&Wire, &cfg) != ESP_OK) return false;
+        if (es7210_adc_config_i2s(cfg.codec_mode, &cfg.i2s_iface) != ESP_OK) return false;
+        const es7210_input_mics_t mics = (es7210_input_mics_t)(ES7210_INPUT_MIC1 | ES7210_INPUT_MIC2 |
+                                                               ES7210_INPUT_MIC3 | ES7210_INPUT_MIC4);
+        if (es7210_mic_select(mics) != ESP_OK) return false;
+        if (es7210_adc_set_gain(mics, GAIN_30DB) != ESP_OK) return false;
+        if (es7210_adc_ctrl_state(cfg.codec_mode, AUDIO_HAL_CTRL_START) != ESP_OK) return false;
+    }
     i2s_config_t icfg = {};
     icfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX);
     icfg.sample_rate = SAMPLE_RATE;

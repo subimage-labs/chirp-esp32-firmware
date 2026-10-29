@@ -5,43 +5,90 @@
 #if CHIRP_HAS_KEYBOARD
 #include <Arduino.h>
 #include <Wire.h>
+#include <freertos/queue.h>
 
 #include <atomic>
 
+#include "i2c_bus.h"
 #include "keymap.h"
 
 // The C3 rescans its matrix about every 35 ms; a read every 10 ms sees every
-// press and keeps the mic key's level close to the finger.
+// press. The reads run on their own task: the mic key's level must follow the
+// finger while the loop is busy (starting the mic, drawing), or a tap reads
+// as a hold and a double-tap is lost.
 static const uint32_t KBD_POLL_MS = 10;
 static const uint8_t KBD_CMD_BRIGHTNESS = 0x01;   // LILYGO_KB_BRIGHTNESS_CMD
 static const uint8_t KBD_CMD_RAW = 0x03;          // LILYGO_KB_MODE_RAW_CMD
 
-static bool online = false;
-static uint32_t lastPollMs = 0;
-static keymap::Decoder decoder;
-static std::atomic<bool> micDown{false};          // loop writes, the key sampler reads
-static KbdEvent pending[8];                       // decoded, not yet taken by keyboardPoll
-static int pendingHead = 0, pendingLen = 0;
+static bool online = false;                       // set once in keyboardBegin, before the task
+static keymap::Decoder decoder;                   // kbd task
+static std::atomic<bool> micDown{false};          // kbd task writes, the key sampler reads
+static QueueHandle_t typed = nullptr;             // KbdEvent: kbd task → loop
 #ifdef BENCH_CMDS
-static bool echo = false;
+static std::atomic<bool> echo{false};             // loop writes, kbd task reads
 #endif
 
 static void command(uint8_t cmd, int arg = -1) {
+    I2cBusLock bus;
     Wire.beginTransmission(KBD_I2C_ADDR);
     Wire.write(cmd);
     if (arg >= 0) Wire.write((uint8_t)arg);
     Wire.endTransmission();
 }
 
+static void pollMatrix() {
+    keymap::Matrix m;
+    {
+        I2cBusLock bus;
+        Wire.requestFrom((uint8_t)KBD_I2C_ADDR, (uint8_t)keymap::COLS);
+        const bool whole = Wire.available() >= keymap::COLS;
+        for (int c = 0; c < keymap::COLS && whole; c++) m.col[c] = (uint8_t)Wire.read();
+        while (Wire.available()) Wire.read();
+        if (!whole) return;                     // a short read: keep the last state
+    }
+#ifdef BENCH_CMDS
+    static keymap::Matrix shown;
+    if (echo.load(std::memory_order_relaxed) && memcmp(m.col, shown.col, sizeof m.col)) {
+        shown = m;
+        Serial.printf("[Kbd] raw %02X %02X %02X %02X %02X\n", m.col[0], m.col[1], m.col[2],
+                      m.col[3], m.col[4]);
+    }
+#endif
+    decoder.feed(m, [](const keymap::KeyEvent& k) {
+        KbdEvent e;
+        e.kind = k.key == keymap::Key::Char        ? KbdEv::Char
+                 : k.key == keymap::Key::Backspace ? KbdEv::Backspace
+                                                   : KbdEv::Enter;
+        e.c = k.c;
+        xQueueSend(typed, &e, 0);                   // full (16 unread keys): dropped
+    });
+    micDown.store(decoder.micDown(), std::memory_order_relaxed);
+}
+
+static void kbdTask(void*) {
+    TickType_t wake = xTaskGetTickCount();
+    for (;;) {
+        pollMatrix();
+        vTaskDelayUntil(&wake, pdMS_TO_TICKS(KBD_POLL_MS));
+    }
+}
+
 bool keyboardBegin() {
+    if (typed) return online;                       // the task runs already (setup mode re-enters)
     Wire.begin(CHIRP_I2C_SDA, CHIRP_I2C_SCL, 400000);
     delay(50);                                  // the C3 needs a moment after rail-on
-    Wire.requestFrom((uint8_t)KBD_I2C_ADDR, (uint8_t)1);
-    online = Wire.available() > 0;
-    while (Wire.available()) Wire.read();
+    {
+        I2cBusLock bus;
+        Wire.requestFrom((uint8_t)KBD_I2C_ADDR, (uint8_t)1);
+        online = Wire.available() > 0;
+        while (Wire.available()) Wire.read();
+    }
     if (online) {
         command(KBD_CMD_RAW);
         keyboardSetBacklight(96);
+        typed = xQueueCreate(16, sizeof(KbdEvent));
+        // Above the loop (priority 1) on its core, so a busy loop never delays a read.
+        xTaskCreatePinnedToCore(kbdTask, "kbd", 3072, nullptr, 2, nullptr, 1);
     }
     Serial.printf("[Kbd] %s\n", online ? "ok" : "not online");
     return online;
@@ -54,55 +101,10 @@ void keyboardSetBacklight(uint8_t v) { command(KBD_CMD_BRIGHTNESS, v); }
 bool keyboardMicDown() { return micDown.load(std::memory_order_relaxed); }
 
 #ifdef BENCH_CMDS
-void keyboardEcho(bool on) { echo = on; }
-bool keyboardEchoOn() { return echo; }
+void keyboardEcho(bool on) { echo.store(on, std::memory_order_relaxed); }
+bool keyboardEchoOn() { return echo.load(std::memory_order_relaxed); }
 #endif
 
-static void queue(const KbdEvent& e) {
-    if (pendingLen == (int)(sizeof pending / sizeof pending[0])) return;   // 8 keys in 10 ms: drop
-    pending[(pendingHead + pendingLen) % (sizeof pending / sizeof pending[0])] = e;
-    pendingLen++;
-}
-
-static void pollMatrix() {
-    keymap::Matrix m;
-    Wire.requestFrom((uint8_t)KBD_I2C_ADDR, (uint8_t)keymap::COLS);
-    if (Wire.available() < keymap::COLS) {
-        while (Wire.available()) Wire.read();
-        return;                                 // a short read: keep the last state
-    }
-    for (int c = 0; c < keymap::COLS; c++) m.col[c] = (uint8_t)Wire.read();
-#ifdef BENCH_CMDS
-    static keymap::Matrix shown;
-    if (echo && memcmp(m.col, shown.col, sizeof m.col)) {
-        shown = m;
-        Serial.printf("[Kbd] raw %02X %02X %02X %02X %02X\n", m.col[0], m.col[1], m.col[2],
-                      m.col[3], m.col[4]);
-    }
-#endif
-    decoder.feed(m, [](const keymap::KeyEvent& k) {
-        KbdEvent e;
-        e.kind = k.key == keymap::Key::Char        ? KbdEv::Char
-                 : k.key == keymap::Key::Backspace ? KbdEv::Backspace
-                                                   : KbdEv::Enter;
-        e.c = k.c;
-        queue(e);
-    });
-    micDown.store(decoder.micDown(), std::memory_order_relaxed);
-}
-
-bool keyboardPoll(KbdEvent& ev) {
-    if (!online) return false;
-    const uint32_t now = millis();
-    if (!pendingLen && now - lastPollMs >= KBD_POLL_MS) {
-        lastPollMs = now;
-        pollMatrix();
-    }
-    if (!pendingLen) return false;
-    ev = pending[pendingHead];
-    pendingHead = (pendingHead + 1) % (int)(sizeof pending / sizeof pending[0]);
-    pendingLen--;
-    return true;
-}
+bool keyboardPoll(KbdEvent& ev) { return typed && xQueueReceive(typed, &ev, 0) == pdTRUE; }
 
 #endif

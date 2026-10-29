@@ -1,5 +1,6 @@
-// balltap_test.cpp — sideways trackball flicks become tab steps: one per
-// flick, none for a stray pulse, three for three flicks with pauses.
+// balltap_test.cpp — trackball motion: sideways flicks become tab steps (one
+// per flick, none for a stray pulse), the vertical roll becomes wheel
+// detents at a set number of pulses each.
 // Run: firmware/test/host/run.sh
 #include "balltap.h"
 
@@ -61,6 +62,23 @@ int main() {
         BallTap b;                              // millis() wrap inside a flick
         uint32_t t = 0xFFFFFFF0u;
         CHECK(flick(b, t, 4) == 1, "a flick across the millis wrap is one tap");
+    }
+    {
+        BallSteps s(2);                         // two pulses per wheel detent
+        CHECK(s.feed(1) == 0, "half a step: nothing yet");
+        CHECK(s.feed(1) == 1, "the second pulse completes the step");
+        CHECK(s.feed(5) == 2, "a batch: whole steps, the rest kept");
+        CHECK(s.feed(1) == 1, "the kept pulse counts toward the next step");
+        CHECK(s.feed(-1) == 0, "turning back drops the kept half: no step yet");
+        CHECK(s.feed(-1) == -1, "a full step down");
+        CHECK(s.feed(0) == 0, "no pulses, no step");
+    }
+    {
+        BallSteps s(3);
+        CHECK(s.feed(2) == 0 && s.feed(-2) == 0 && s.feed(-1) == -1,
+              "a reversal never borrows the other direction's pulses");
+        BallSteps one(0);
+        CHECK(one.feed(4) == 4, "a nonsense divider acts as one pulse per step");
     }
     if (failures) {
         printf("balltap: %d check(s) failed\n", failures);
