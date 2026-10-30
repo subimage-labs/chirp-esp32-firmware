@@ -32,17 +32,27 @@ struct Agent {
 };
 static const size_t LOOK_HEX_LEN = 24;
 
-// Stored settings (NVS). hermes and shim are canonical "host:port"; an empty
-// shim means the Hermes host on SHIM_PORT_DEFAULT; an empty pass means an
-// open network. backend picks the mode: "local" talks to hermes/shim over
-// the LAN; "venice" talks TLS to the venice backend (scheme + canonical
-// host:port, default VENICE_HOST_DEFAULT) with veniceKey as its only
+// One remembered WiFi network. An empty pass is an open network.
+namespace setup_form {
+struct Network {
+    std::string ssid, pass;
+};
+}  // namespace setup_form
+static const size_t MAX_NETWORKS = 5;
+
+// Stored settings (NVS). `networks` are the remembered WiFi networks, most
+// recently joined first (at most MAX_NETWORKS; wifi_pick.h picks which one to
+// join). hermes and shim are canonical "host:port"; an empty shim means the
+// Hermes host on SHIM_PORT_DEFAULT. backend picks the mode: "local" talks to
+// hermes/shim over the LAN; "venice" talks TLS to the venice backend (scheme +
+// canonical host:port, default VENICE_HOST_DEFAULT) with veniceKey as its only
 // credential — a key belongs to the backend it was issued for, so a
 // different backend host never inherits it. The local-mode fields keep
 // their values across a mode switch. All agents live on the one Hermes
 // host; `active` indexes the one the device answers as.
 struct DeviceSettings {
-    std::string ssid, pass, hermes, shim;
+    std::vector<setup_form::Network> networks;
+    std::string hermes, shim;
     std::string backend = "local";
     std::string venice = VENICE_HOST_DEFAULT;
     std::string veniceKey;
@@ -52,16 +62,18 @@ struct DeviceSettings {
 
 // One submission: the phone form, a serial `settings` line or a pairing code.
 // The caller fills every field it doesn't change from the stored settings.
+// ssid / pass / open describe the one network being added or edited.
 struct SettingsInput {
     std::string ssid, pass, hermes, shim;
     bool backendSet = false;               // choose the mode
     std::string backend;                   // "local" | "venice"
     std::string venice;                    // backend host; "" = the default
     std::string veniceKey;                 // "" keeps the stored key
-    bool open = false;                     // network has no password
+    bool open = false;                     // the network has no password
     bool useSet = false;                   // make `use` the active agent
     std::string use;
-    std::vector<std::string> forget;      // profiles to remove
+    std::vector<std::string> forget;      // profiles to remove (agents)
+    std::vector<std::string> forgetNetworks;   // saved networks to remove (exact ssid)
     std::string addProfile, addKey;       // add (or re-key) one agent
     bool lookSet = false;                 // set the added / selected agent's look
     std::string look;                     // "" clears it
@@ -174,6 +186,13 @@ inline int findAgent(const std::vector<Agent>& agents, const std::string& profil
     return -1;
 }
 
+// Exact (case-sensitive) match on the network name.
+inline int findNetwork(const std::vector<setup_form::Network>& nets, const std::string& ssid) {
+    for (size_t i = 0; i < nets.size(); i++)
+        if (nets[i].ssid == ssid) return (int)i;
+    return -1;
+}
+
 namespace setup_form {
 
 inline const char* keyError(const std::string& key) {
@@ -214,13 +233,32 @@ inline const char* profileError(const std::string& profile) {
     return nullptr;
 }
 
+// Why one network (name, password, open ticked) can't be saved, or nullptr.
+// A name is 1..32 characters without control characters (spaces are fine);
+// an open network has no password, any other needs 8..63 characters or 64 hex.
+inline const char* networkError(const std::string& ssid, const std::string& pass, bool open) {
+    if (ssid.empty() || ssid.size() > 32 || hasControl(ssid)) return "WiFi network name is invalid";
+    if (open) return pass.empty() ? nullptr : "Open network: leave the password blank";
+    if (pass.empty()) return "Enter the WiFi password, or tick Open network";
+    bool hex64 = pass.size() == 64;
+    for (char c : pass) hex64 = hex64 && isHex(c);
+    const bool ascii = pass.size() >= 8 && pass.size() <= 63 && !hasControl(pass);
+    if (!hex64 && !ascii) return "WiFi password must be 8-63 characters";
+    return nullptr;
+}
+
 }  // namespace setup_form
 
 // Validates a submission against the stored settings. Returns nullptr and
 // fills `out` on success, else a message for the user (`out` untouched).
-//   - open: the network has no password; a typed password is an error
-//     rather than silently dropped. Otherwise a blank password keeps the
-//     stored one when the network is unchanged; a new network needs one.
+//   - WiFi: `forgetNetworks` removes saved networks first (unknown names are
+//     ignored). Then a non-empty `ssid` adds one network: validated with
+//     `open` / `pass`; a saved network of the same name (exact) is edited, a
+//     blank password with `open` unticked keeping its saved password; it
+//     moves to the front, a new one is inserted there and the oldest is
+//     dropped past MAX_NETWORKS. A name both forgotten and submitted is
+//     saved with the submitted password. An empty `ssid` adds nothing. Local
+//     mode needs at least one saved network afterwards.
 //   - Blank shim = the Hermes host.
 //   - backend: "local" (the default) or "venice". A venice device skips the
 //     Hermes fields (keeping them stored for a switch back), needs the
@@ -245,24 +283,26 @@ inline const char* mergeSettings(const DeviceSettings& cur, const SettingsInput&
     using namespace setup_form;
     DeviceSettings r;
 
-    r.ssid = in.ssid;                               // SSIDs may carry spaces: no trim
-    if (r.ssid.size() > 32 || hasControl(r.ssid)) return "WiFi network name is invalid";
-    // An empty ssid waits for the venice pre-provision rule below (key
-    // stored, WiFi picked later in the portal); the password rules need a
-    // network to be about.
-
-    r.pass = in.pass;
-    if (!r.ssid.empty()) {
-        if (in.open) {
-            if (!r.pass.empty()) return "Open network: leave the password blank";
-        } else {
-            if (r.pass.empty() && r.ssid == cur.ssid) r.pass = cur.pass;
-            if (r.pass.empty()) return "Enter the WiFi password, or tick Open network";
-            bool hex64 = r.pass.size() == 64;
-            for (char c : r.pass) hex64 = hex64 && isHex(c);
-            const bool ascii = r.pass.size() >= 8 && r.pass.size() <= 63 && !hasControl(r.pass);
-            if (!hex64 && !ascii) return "WiFi password must be 8-63 characters";
-        }
+    // SSIDs may carry spaces: no trim. An empty `ssid` adds no network; the
+    // empty list then waits for the venice pre-provision rule below (key
+    // stored, WiFi picked later in the portal).
+    // The stored list is trusted only after the same limits a submission
+    // meets: duplicate names dropped (the first stays), at most MAX_NETWORKS.
+    for (const Network& n : cur.networks)
+        if (findNetwork(r.networks, n.ssid) < 0 && r.networks.size() < MAX_NETWORKS)
+            r.networks.push_back(n);
+    for (const std::string& f : in.forgetNetworks) {
+        const int i = findNetwork(r.networks, f);
+        if (i >= 0) r.networks.erase(r.networks.begin() + i);
+    }
+    if (!in.ssid.empty()) {
+        std::string pass = in.pass;
+        const int i = findNetwork(r.networks, in.ssid);
+        if (!in.open && pass.empty() && i >= 0) pass = r.networks[i].pass;
+        if (const char* e = networkError(in.ssid, pass, in.open)) return e;
+        if (i >= 0) r.networks.erase(r.networks.begin() + i);
+        r.networks.insert(r.networks.begin(), Network{in.ssid, pass});
+        if (r.networks.size() > MAX_NETWORKS) r.networks.resize(MAX_NETWORKS);
     }
 
     std::string backend = in.backendSet ? trim(in.backend) : std::string();
@@ -270,7 +310,7 @@ inline const char* mergeSettings(const DeviceSettings& cur, const SettingsInput&
     r.backend = backend;
     if (r.backend != "local" && r.backend != "venice")
         return "The backend is either Hermes on your network or Venice";
-    if (r.ssid.empty() && r.backend != "venice")
+    if (r.networks.empty() && r.backend != "venice")
         return "Enter the WiFi network name";
 
     HostPort hp;
@@ -406,11 +446,17 @@ inline std::string sessionFileName(const std::string& hermes, const std::string&
 }
 
 // Stored settings are usable only if they would pass the form on their own
-// (an empty stored password is an open network) and, in local mode, every
-// agent is valid.
+// (each saved network valid, an empty password meaning an open one; at most
+// MAX_NETWORKS, no name twice) and, in local mode, every agent is valid.
 inline bool settingsUsable(const DeviceSettings& s) {
     using namespace setup_form;
-    if (s.ssid.empty()) return false;    // venice pre-provision: stored, not runnable
+    // No saved network: stored but not runnable (the venice pre-provision state).
+    if (s.networks.empty() || s.networks.size() > MAX_NETWORKS) return false;
+    for (size_t i = 0; i < s.networks.size(); i++) {
+        if (networkError(s.networks[i].ssid, s.networks[i].pass, s.networks[i].pass.empty()))
+            return false;
+        if (findNetwork(s.networks, s.networks[i].ssid) != (int)i) return false;   // duplicate
+    }
     const bool venice = s.backend == "venice";
     if ((!venice && s.agents.empty()) || s.agents.size() > MAX_AGENTS ||
         (!s.agents.empty() && s.active >= s.agents.size()))
@@ -421,9 +467,6 @@ inline bool settingsUsable(const DeviceSettings& s) {
         if (findAgent(s.agents, s.agents[i].profile) != (int)i) return false;   // duplicate
     }
     SettingsInput in;
-    in.ssid = s.ssid;
-    in.pass = s.pass;
-    in.open = s.pass.empty();
     in.backend = s.backend;                     // re-validated by the merge
     in.backendSet = true;
     in.hermes = s.hermes;

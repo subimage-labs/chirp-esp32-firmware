@@ -50,8 +50,7 @@ static void hostPort() {
 
 static DeviceSettings stored() {
     DeviceSettings s;
-    s.ssid = "Home";
-    s.pass = "storedpass";
+    s.networks = {{"Home", "storedpass"}};
     s.hermes = "gw:8642";
     s.agents = {Agent{"alpha", "storedkey"}};
     return s;
@@ -90,7 +89,7 @@ static const std::string& activeProfile(const DeviceSettings& s) {
 static void blankSecretsKeepStored() {
     DeviceSettings out;
     CHECK(mergeSettings(stored(), form("Home", "", "gw"), out) == nullptr);
-    CHECK(out.pass == "storedpass");
+    CHECK(out.networks.size() == 1 && out.networks[0].pass == "storedpass");
     CHECK(out.agents.size() == 1 && out.agents[0].key == "storedkey");
 }
 
@@ -99,17 +98,16 @@ static void newNetworkNeedsPassword() {
     DeviceSettings out;
     CHECK(mergeSettings(stored(), form("Cafe", "", "gw"), out) != nullptr);
     CHECK(mergeSettings(stored(), opened(form("Cafe", "", "gw")), out) == nullptr);
-    CHECK(out.pass.empty());
+    CHECK(!out.networks.empty() && out.networks[0].pass.empty());
 }
 
 static void openNetwork() {
     DeviceSettings out;
     CHECK(mergeSettings(stored(), opened(form("Home", "", "gw")), out) == nullptr);
-    CHECK(out.pass.empty());                  // clears a stored password on the same SSID
+    CHECK(!out.networks.empty() && out.networks[0].pass.empty());                  // clears a stored password on the same SSID
     CHECK(mergeSettings(stored(), opened(form("Home", "typedpass", "gw")), out) != nullptr);
     DeviceSettings wasOpen = stored();
-    wasOpen.ssid = "Open";
-    wasOpen.pass = "";
+    wasOpen.networks = {{"Open", ""}};
     CHECK(mergeSettings(wasOpen, form("Open", "", "gw"), out) != nullptr);   // unticked: needs one
 }
 
@@ -118,7 +116,7 @@ static void newValuesReplaceStored() {
     CHECK(mergeSettings(stored(), form("Home", "newpassword", "http://gw2:1234/", "alpha", "k2",
                                        "shimbox"),
                         out) == nullptr);
-    CHECK(out.pass == "newpassword");
+    CHECK(out.networks.size() == 1 && out.networks[0].pass == "newpassword");
     CHECK(out.hermes == "gw2:1234");
     CHECK(out.shim == "shimbox:8643");
 }
@@ -145,7 +143,7 @@ static void passwordRules() {
 
 static void requiredFields() {
     DeviceSettings out;
-    CHECK(mergeSettings(stored(), form("", "", "gw"), out) != nullptr);
+    CHECK(mergeSettings(stored(), form("", "", "gw"), out) == nullptr);
     CHECK(mergeSettings(stored(), form(std::string(33, 's').c_str(), "", "gw"), out) != nullptr);
     CHECK(mergeSettings(stored(), form("Home", "", " "), out) != nullptr);
 }
@@ -163,7 +161,7 @@ static void headerInjectionRejected() {
 static void failureLeavesOutUntouched() {
     DeviceSettings out = stored();
     CHECK(mergeSettings(twoAgents(), form("Home", "", "https://gw"), out) != nullptr);
-    CHECK(out.ssid == "Home" && out.hermes == "gw:8642" && out.agents.size() == 1);
+    CHECK(out.networks.size() == 1 && out.networks[0].ssid == "Home" && out.hermes == "gw:8642" && out.agents.size() == 1);
 }
 
 // Adding an agent keeps the others and switches to it; a stored name with a
@@ -372,7 +370,7 @@ static void venicePreProvision() {
     pre.backend = "venice";
     pre.veniceKey = "vkey1";
     CHECK(mergeSettings(DeviceSettings(), pre, out) == nullptr);
-    CHECK(out.ssid.empty() && out.backend == "venice" && out.veniceKey == "vkey1");
+    CHECK(out.networks.empty() && out.backend == "venice" && out.veniceKey == "vkey1");
     CHECK(!settingsUsable(out));                 // no WiFi yet: setup mode
     DeviceSettings ven = out;
     SettingsInput done;
@@ -381,9 +379,11 @@ static void venicePreProvision() {
     done.backendSet = true;
     done.backend = "venice";
     CHECK(mergeSettings(ven, done, out) == nullptr);
-    CHECK(out.ssid == "Home" && out.veniceKey == "vkey1" && settingsUsable(out));
-    // Local mode never allows the keyless-WiFi state.
-    CHECK(mergeSettings(stored(), form("", "", "gw"), out) != nullptr);
+    CHECK(out.networks.size() == 1 && out.networks[0].ssid == "Home" && out.veniceKey == "vkey1" && settingsUsable(out));
+    // Local mode requires at least one saved network.
+    DeviceSettings noNetworks = stored();
+    noNetworks.networks.clear();
+    CHECK(mergeSettings(noNetworks, form("", "", "gw"), out) != nullptr);
 }
 // An agent's character look (host/pair.py): 24 hex digits of trait indexes.
 static const char* const LOOK = "ffffffff0300ffff0107ff02";
@@ -468,11 +468,10 @@ static void usable() {
     CHECK(settingsUsable(stored()));
     CHECK(settingsUsable(twoAgents()));
     DeviceSettings s = stored();
-    s.ssid = "Open";
-    s.pass = "";
+    s.networks = {{"Open", ""}};
     CHECK(settingsUsable(s));                                   // open network
     s = stored();
-    s.pass = "pw";
+    s.networks[0].pass = "pw";
     CHECK(!settingsUsable(s));                                  // too short
     s = twoAgents();
     s.active = 2;
@@ -495,7 +494,7 @@ static void usable() {
     CHECK(settingsUsable(v));                               // venice needs no agent
     v.venice = "bad host";
     CHECK(!settingsUsable(v));                              // malformed backend host
-    v.ssid = "";
+    v.networks.clear();
     CHECK(!settingsUsable(v));                              // pre-provision: no WiFi yet
 }
 
@@ -550,7 +549,172 @@ static void portalAccess() {
     CHECK(portalExpired(true, max, 0xFFFFEC78u, max, idle, max));
 }
 
+static bool networksAre(const DeviceSettings& s,
+                        const std::vector<setup_form::Network>& expected) {
+    if (s.networks.size() != expected.size()) return false;
+    for (size_t i = 0; i < expected.size(); ++i)
+        if (s.networks[i].ssid != expected[i].ssid || s.networks[i].pass != expected[i].pass)
+            return false;
+    return true;
+}
+
+static bool errorIs(const char* actual, const char* expected) {
+    return actual && std::strcmp(actual, expected) == 0;
+}
+
+static DeviceSettings savedNetworks() {
+    DeviceSettings s = stored();
+    s.networks = {{"Home", "storedpass"}, {"Cafe", "cafepass"}, {"Lab", "labpassword"}};
+    return s;
+}
+
+static void networkMerge() {
+    using namespace setup_form;
+    DeviceSettings out;
+    CHECK(mergeSettings(savedNetworks(), form("Park", "parkpass", "gw"), out) == nullptr);
+    CHECK(networksAre(out, {{"Park", "parkpass"}, {"Home", "storedpass"},
+                            {"Cafe", "cafepass"}, {"Lab", "labpassword"}}));
+    CHECK(mergeSettings(savedNetworks(), form("Cafe", "", "gw"), out) == nullptr);
+    CHECK(networksAre(out, {{"Cafe", "cafepass"}, {"Home", "storedpass"}, {"Lab", "labpassword"}}));
+    CHECK(mergeSettings(savedNetworks(), form("Cafe", "newpassword", "gw"), out) == nullptr);
+    CHECK(networksAre(out, {{"Cafe", "newpassword"}, {"Home", "storedpass"}, {"Lab", "labpassword"}}));
+    CHECK(mergeSettings(savedNetworks(), opened(form("Cafe", "", "gw")), out) == nullptr);
+    CHECK(networksAre(out, {{"Cafe", ""}, {"Home", "storedpass"}, {"Lab", "labpassword"}}));
+    CHECK(mergeSettings(savedNetworks(), form("Home", "", "gw"), out) == nullptr);
+    CHECK(networksAre(out, savedNetworks().networks));
+    CHECK(mergeSettings(savedNetworks(), form("", "", "gw"), out) == nullptr);
+    CHECK(networksAre(out, savedNetworks().networks));
+    CHECK(mergeSettings(savedNetworks(), opened(form("", "ignored", "gw")), out) == nullptr);
+    CHECK(networksAre(out, savedNetworks().networks));
+    // Names match exactly: capitalization does not edit another entry.
+    CHECK(mergeSettings(stored(), form("home", "otherpass", "gw"), out) == nullptr);
+    CHECK(networksAre(out, {{"home", "otherpass"}, {"Home", "storedpass"}}));
+
+    CHECK(MAX_NETWORKS == 5);
+    DeviceSettings full = savedNetworks();
+    full.networks.push_back({"Park", "parkpass"});
+    full.networks.push_back({"Studio", "studiopass"});
+    CHECK(full.networks.size() == MAX_NETWORKS);
+    CHECK(mergeSettings(full, form("Garden", "gardenpass", "gw"), out) == nullptr);
+    CHECK(out.networks.size() == MAX_NETWORKS);
+    CHECK(networksAre(out, {{"Garden", "gardenpass"}, {"Home", "storedpass"},
+                            {"Cafe", "cafepass"}, {"Lab", "labpassword"}, {"Park", "parkpass"}}));
+    CHECK(mergeSettings(full, form("Studio", "", "gw"), out) == nullptr);
+    CHECK(networksAre(out, {{"Studio", "studiopass"}, {"Home", "storedpass"},
+                            {"Cafe", "cafepass"}, {"Lab", "labpassword"}, {"Park", "parkpass"}}));
+}
+
+static void storedNetworkValidation() {
+    DeviceSettings s = savedNetworks();
+    CHECK(settingsUsable(s));
+    s.networks.push_back({"Cafe", "otherpass"});
+    CHECK(!settingsUsable(s));
+
+    s = stored();
+    s.networks.clear();
+    for (size_t i = 0; i < MAX_NETWORKS; ++i)
+        s.networks.push_back({"Synthetic" + std::to_string(i), "testpass"});
+    CHECK(settingsUsable(s));
+    s.networks.push_back({"Overflow", "testpass"});
+    CHECK(s.networks.size() == MAX_NETWORKS + 1);
+    CHECK(!settingsUsable(s));
+}
+
+static void normalizeStoredNetworks() {
+    DeviceSettings out;
+    DeviceSettings duplicates = savedNetworks();
+    duplicates.networks.insert(duplicates.networks.begin() + 2, {"Cafe", "otherpass"});
+    duplicates.networks.push_back({"Home", ""});
+    CHECK(mergeSettings(duplicates, form("", "", "gw"), out) == nullptr);
+    CHECK(networksAre(out, savedNetworks().networks));
+    CHECK(settingsUsable(out));
+    // Editing with a blank password uses the first stored duplicate's password.
+    CHECK(mergeSettings(duplicates, form("Cafe", "", "gw"), out) == nullptr);
+    CHECK(networksAre(out, {{"Cafe", "cafepass"}, {"Home", "storedpass"},
+                            {"Lab", "labpassword"}}));
+
+    DeviceSettings oversized = stored();
+    oversized.networks.clear();
+    for (size_t i = 0; i < MAX_NETWORKS; ++i)
+        oversized.networks.push_back({"Synthetic" + std::to_string(i), "testpass"});
+    const auto expected = oversized.networks;
+    oversized.networks.push_back({"Overflow", "otherpass"});
+    CHECK(mergeSettings(oversized, form("", "", "gw"), out) == nullptr);
+    CHECK(networksAre(out, expected));
+    CHECK(settingsUsable(out));
+    // Both defects in one stored list still preserve the first entries.
+    oversized.networks.push_back({"Synthetic0", "differentpass"});
+    CHECK(mergeSettings(oversized, form("", "", "gw"), out) == nullptr);
+    CHECK(networksAre(out, expected));
+    CHECK(settingsUsable(out));
+}
+
+static void forgetNetworks() {
+    DeviceSettings out;
+    SettingsInput in = form("", "", "gw");
+    in.forgetNetworks = {"Cafe"};
+    CHECK(mergeSettings(savedNetworks(), in, out) == nullptr);
+    CHECK(networksAre(out, {{"Home", "storedpass"}, {"Lab", "labpassword"}}));
+    in.forgetNetworks = {"Park", "home", "Home "};
+    CHECK(mergeSettings(savedNetworks(), in, out) == nullptr);
+    CHECK(networksAre(out, savedNetworks().networks));
+    in.forgetNetworks = {"Home", "Lab"};
+    CHECK(mergeSettings(savedNetworks(), in, out) == nullptr);
+    CHECK(networksAre(out, {{"Cafe", "cafepass"}}));
+    in = form("Cafe", "newpassword", "gw");
+    in.forgetNetworks = {"Cafe"};
+    CHECK(mergeSettings(savedNetworks(), in, out) == nullptr);
+    CHECK(networksAre(out, {{"Cafe", "newpassword"}, {"Home", "storedpass"}, {"Lab", "labpassword"}}));
+    in.pass.clear();
+    CHECK(errorIs(mergeSettings(savedNetworks(), in, out),
+                  "Enter the WiFi password, or tick Open network"));
+    in.open = true;
+    CHECK(mergeSettings(savedNetworks(), in, out) == nullptr);
+    CHECK(networksAre(out, {{"Cafe", ""}, {"Home", "storedpass"}, {"Lab", "labpassword"}}));
+    // Forgetting and adding the sole network is allowed: validate after both operations.
+    in = form("Home", "newpassword", "gw");
+    in.forgetNetworks = {"Home"};
+    CHECK(mergeSettings(stored(), in, out) == nullptr);
+    CHECK(networksAre(out, {{"Home", "newpassword"}}));
+    in.ssid.clear();
+    in.pass.clear();
+    CHECK(errorIs(mergeSettings(stored(), in, out), "Enter the WiFi network name"));
+    CHECK(mergeSettings(veniceStored(), in, out) == nullptr);
+    CHECK(out.networks.empty());
+    CHECK(!settingsUsable(out));
+}
+
+static void networkValidationMessages() {
+    DeviceSettings out;
+    DeviceSettings empty = stored();
+    empty.networks.clear();
+    CHECK(errorIs(mergeSettings(empty, form("", "", "gw"), out), "Enter the WiFi network name"));
+    CHECK(errorIs(mergeSettings(stored(), form("Cafe", "", "gw"), out),
+                  "Enter the WiFi password, or tick Open network"));
+    CHECK(errorIs(mergeSettings(stored(), opened(form("Home", "typedpass", "gw")), out),
+                  "Open network: leave the password blank"));
+    for (const std::string& name : {std::string(33, 's'), std::string("Ho\nme"), std::string("Home\x7f")})
+        CHECK(errorIs(mergeSettings(stored(), form(name.c_str(), "password1", "gw"), out),
+                      "WiFi network name is invalid"));
+    CHECK(mergeSettings(stored(), form(std::string(32, 's').c_str(), "password1", "gw"), out) == nullptr);
+    for (const std::string& pass : {std::string("short"), std::string(64, 'z'),
+                                   std::string(65, 'a'), std::string("pass\nword123")})
+        CHECK(errorIs(mergeSettings(stored(), form("Home", pass.c_str(), "gw"), out),
+                      "WiFi password must be 8-63 characters"));
+    CHECK(mergeSettings(stored(), form("Home", "12345678", "gw"), out) == nullptr);
+    CHECK(mergeSettings(stored(), form("Home", std::string(64, 'A').c_str(), "gw"), out) == nullptr);
+    CHECK(!settingsUsable(empty));
+    empty = veniceStored();
+    empty.networks.clear();
+    CHECK(!settingsUsable(empty));
+}
+
 int main() {
+    networkMerge();
+    storedNetworkValidation();
+    normalizeStoredNetworks();
+    forgetNetworks();
+    networkValidationMessages();
     hostPort();
     blankSecretsKeepStored();
     newNetworkNeedsPassword();

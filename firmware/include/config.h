@@ -25,7 +25,7 @@
 #define CHUNK_MAX_WORDS      80        // force-close before chunks get huge
 #define CHUNK_MP3_CAP        (512 * 1024)
 #define CHUNK_QUEUE          4
-#define WIFI_RETRY_MS        5000UL
+#define WIFI_RETRY_MS        5000UL    // offline: next scan + join this long after the last one
 
 // --- Microphone (I2S0 RX; kind and pins per board) ---
 #define SAMPLE_RATE      16000

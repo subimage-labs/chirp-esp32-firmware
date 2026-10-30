@@ -36,6 +36,7 @@
 #include "turn.h"
 #include "ui.h"
 #include "voice.h"
+#include "wifi_join.h"
 #if CHIRP_HAS_KEYBOARD
 #include "keyboard.h"
 #include "keymap.h"
@@ -49,7 +50,6 @@ bool appVoiceWaiting() {
     return voiceOn() && uiState == UI_IDLE && !(voiceHearing() && captureShown());
 }
 
-static uint32_t wifiRetryMs = 0;
 static bool volMode = false;                      // side-key hold: wheel = volume
 static uint32_t volModeUntilMs = 0;
 static bool sideHoldActed = false;                // this press's hold armed volume
@@ -315,14 +315,16 @@ void setup() {
     inputBegin();
     if (wokeByKey) inputSwallowKeys();             // the waking press only wakes
 
-    settingsWifiBegin();
+    wifiJoinBegin();                               // scan, join the strongest saved network
     uiNotice("Joining WiFi", Ink::Strong);
     const uint32_t t0 = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t0 < WIFI_TIMEOUT_MS) {
         delay(250);
+        wifiJoinTick(true);                        // a failed scan or join is retried in the wait
         uiPanelHold();
         Serial.print('.');
     }
+    wifiJoinTick(false);                           // records a join that just landed
     Serial.println();
     if (WiFi.status() == WL_CONNECTED) {
         Serial.printf("[WiFi] %s (rssi %d)\n",
@@ -423,11 +425,7 @@ void loop() {
     liveRowTick();
     deferredVoiceTick();
 
-    if (WiFi.status() != WL_CONNECTED &&
-        uiState == UI_IDLE && millis() - wifiRetryMs > WIFI_RETRY_MS) {
-        wifiRetryMs = millis();
-        WiFi.reconnect();
-    }
+    wifiJoinTick(uiState == UI_IDLE);              // offline: rescan, join the best saved network
     uiPanelHold();                                 // after this pass's drawing (ui.cpp)
     delay(2);
 }

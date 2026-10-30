@@ -3,7 +3,8 @@
 //
 //   settings {json}  provisioning (host/provision.py, host/pair.py). Members
 //                    as in settingsInputFromJson (settings.h): absent ones
-//                    keep the stored value; profile + key adds that agent.
+//                    keep the stored value; ssid + pass add a WiFi network
+//                    (forgetWifi removes one); profile + key adds that agent.
 //                    Same rules as the setup form (setup_form.h). Never
 //                    echoed. Replies one line, "[Settings] saved, restarting"
 //                    or "[Settings] rejected: <reason>"; restarts after a save.

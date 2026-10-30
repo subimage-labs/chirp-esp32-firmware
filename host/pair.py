@@ -47,9 +47,10 @@ key travels over plain HTTP on the LAN; the last line of a run says so.
                    LAN, restarting it, installing the speech service, and
                    writing to an attached device always ask.
 
-Environment: WIFI_SSID / WIFI_PASS supply the WiFi credentials for the wired
-handoff (for unattended runs; otherwise asked interactively; a blank SSID
-keeps the network the device already has).
+Environment: WIFI_SSID / WIFI_PASS add a WiFi network to the device for the wired
+handoff (for unattended runs; otherwise asked interactively; a blank SSID adds
+none: the device keeps the networks it has, up to 5, and joins the strongest in
+range; a name it already holds is edited).
 """
 
 import argparse
@@ -477,7 +478,7 @@ def handoff_usb(args, host, profile, api_key, look=None):
     ssid = os.environ.get("WIFI_SSID")
     if ssid is None:
         ssid = input("WiFi network (SSID) for the device "
-                     "(blank = keep the one it already has): ").strip()
+                     "(blank = add none, keep the ones it has): ").strip()
     if ssid:
         password = os.environ.get("WIFI_PASS")
         if password is None:

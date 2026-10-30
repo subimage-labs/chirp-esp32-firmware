@@ -104,8 +104,28 @@ static void sendForm(const SettingsInput& v, bool paired, const char* error) {
     h += formToken.c_str();
     h += "><p class=err id=pairerr hidden>That pairing code is damaged; run host/pair.py "
          "again</p><h3>WiFi</h3>";
-    field(h, "Network", "ssid", "text", v.ssid, "",
-          "list=nets required maxlength=32 autocapitalize=none autocorrect=off");
+    if (!cur.networks.empty()) {
+        h += "<p><small>Saved networks: Chirp joins the strongest one in range. Tick "
+             "<b>Forget</b> to remove one.</small></p>";
+        for (size_t i = 0; i < cur.networks.size(); i++) {
+            const std::string& n = cur.networks[i].ssid;
+            const bool forgetting = std::find(v.forgetNetworks.begin(), v.forgetNetworks.end(),
+                                              n) != v.forgetNetworks.end();
+            h += "<div class=ag><span><b>";
+            h += htmlEscape(n).c_str();
+            h += "</b></span><label class=cb><input type=checkbox name=forgetwifi";
+            h += String((unsigned)i);
+            h += " value=\"";
+            h += htmlEscape(n).c_str();
+            h += "\"";
+            if (forgetting) h += " checked";
+            h += ">Forget</label></div>";
+        }
+    }
+    field(h, cur.networks.empty() ? "Network" : "Add a network", "ssid", "text", v.ssid, "",
+          cur.networks.empty()
+              ? "list=nets required maxlength=32 autocapitalize=none autocorrect=off"
+              : "list=nets maxlength=32 autocapitalize=none autocorrect=off");
     h += "<datalist id=nets>";
     for (const std::string& s : nearby) {
         h += "<option value=\"";
@@ -114,8 +134,11 @@ static void sendForm(const SettingsInput& v, bool paired, const char* error) {
     }
     h += "</datalist>";
     field(h, "Password", "pass", "password", "",
-          cur.pass.empty() ? "" : "saved; blank keeps it (same network)",
+          cur.networks.empty() ? "" : "blank keeps it (a saved network)",
           "class=pw maxlength=64");
+    if (cur.networks.size() >= MAX_NETWORKS)
+        h += "<p><small>The device holds up to 5 networks: adding another forgets the "
+             "one joined longest ago.</small></p>";
     h += "<label class=cb><input type=checkbox name=open";
     if (v.open) h += " checked";
     h += ">Open network (no password)</label>";
@@ -245,15 +268,19 @@ var d=document.getElementById('manual');d.disabled=true;d.hidden=true;
     server.send(200, "text/html", h);
 }
 
-static void sendDone(const std::string& ssid) {
+static void sendDone(size_t saved) {
     String h =
         "<!doctype html><html><head><meta charset=utf-8>"
         "<meta name=viewport content='width=device-width,initial-scale=1'>"
         "<title>Chirp setup</title></head>"
         "<body style='font-family:system-ui,sans-serif;max-width:30em;margin:1em auto;padding:0 1em'>"
-        "<h2>Saved</h2><p>Chirp is restarting and joining <b>";
-    h += htmlEscape(ssid).c_str();
-    h += "</b>. You can reconnect this phone to your usual WiFi.</p></body></html>";
+        "<h2>Saved</h2><p>Chirp is restarting. ";
+    if (saved)
+        h += "It joins the strongest saved WiFi network in range. You can reconnect this "
+             "phone to your usual WiFi.";
+    else
+        h += "No WiFi network is saved yet, so setup stays open.";
+    h += "</p></body></html>";
     server.send(200, "text/html", h);
 }
 
@@ -265,8 +292,7 @@ static void onForm() {
     lastActivityMs = millis();
     const DeviceSettings& cur = settingsStored();
     SettingsInput v;
-    v.ssid = cur.ssid;
-    v.open = !cur.ssid.empty() && cur.pass.empty();
+    // A fresh visit starts with a blank Network field: blank adds none.
     v.hermes = cur.hermes;
     v.shim = cur.shim;
     v.backend = cur.backend.empty() ? "local" : cur.backend;
@@ -290,6 +316,10 @@ static void onSave() {
     in.ssid = server.arg("ssid").c_str();
     in.pass = server.arg("pass").c_str();
     in.open = server.hasArg("open");
+    for (size_t i = 0; i < settingsStored().networks.size(); i++) {   // one per rendered row
+        const String name = String("forgetwifi") + (unsigned)i;
+        if (server.hasArg(name)) in.forgetNetworks.push_back(server.arg(name).c_str());
+    }
     in.hermes = server.arg("hermes").c_str();
     in.shim = server.arg("shim").c_str();
     in.backendSet = server.hasArg("backend");
@@ -320,7 +350,7 @@ static void onSave() {
         sendForm(in, paired, err);
         return;
     }
-    sendDone(out.ssid);
+    sendDone(out.networks.size());
     statusLine(portal_layout::MSG_SAVED, Ink::Ok);
     restartAtMs = millis() + 2000;                 // let the page reach the phone
 }

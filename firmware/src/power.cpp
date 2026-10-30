@@ -17,6 +17,7 @@
 #include "speech.h"
 #include "ui.h"
 #include "voice.h"
+#include "wifi_join.h"
 
 static PowerPolicy policy(ANIM_SLOW_MS, SCREEN_DIM_MS, SCREEN_OFF_MS, LIGHT_SLEEP_MS,
                           DEEP_SLEEP_MS);
@@ -168,7 +169,7 @@ static void enterLightSleep() {
     policy.activity(millis());
     appRedraw();
     uiMsg("Joining WiFi", Ink::Muted);
-    settingsWifiBegin();
+    wifiJoinBegin();                                // the loop's wifiJoinTick joins the pick
     wifiRejoining = true;
 }
 

@@ -22,12 +22,15 @@
 // closes it), the chat-list result slot (menu.cpp), and the key ring
 // (keyring.h: keys → loop level changes). Settings are
 // loaded before any task starts and never change
-// during a boot, so every context reads them freely.
+// during a boot (the one exception: the loop task reorders the saved WiFi
+// networks after a join, wifi_join.h), so every context reads them freely.
 //
 // Setup mode (portal) replaces all of the above for a whole boot: nothing
 // but the portal loop runs, and it ends in a restart.
 //
-// Modules: settings (NVS device settings, derived endpoints) · portal (setup
+// Modules: settings (NVS device settings, derived endpoints) · wifi_join (saved
+// WiFi networks: async scan, join the strongest, boot / wake / background
+// retry; pure choice in wifi_pick.h; loop task only) · portal (setup
 // mode: soft AP + captive form) · console (serial lines: provisioning, bench)
 // · selftest (boot reachability check) · ota (boot firmware update from the
 // shim) · ui (display, theme, text and fonts, transcript view, status

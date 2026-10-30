@@ -312,8 +312,8 @@ static String infoValue(int i) {
     const bool online = WiFi.status() == WL_CONNECTED;
     switch (i) {
     case 0: return otaVersion();
-    case 1: return String(s.ssid.c_str()) +
-                   (online ? "  (" + String(WiFi.RSSI()) + " dBm)" : "  (not connected)");
+    case 1: return online ? WiFi.SSID() + "  (" + String(WiFi.RSSI()) + " dBm)"
+                          : String((unsigned)s.networks.size()) + " saved  (not connected)";
     case 2: return online ? WiFi.localIP().toString() : String("-");
     case 3: return s.hermes.c_str();
     case 4: return e.shimHost + ":" + String(e.shimPort);

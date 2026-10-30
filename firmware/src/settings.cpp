@@ -2,7 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <Preferences.h>
-#include <WiFi.h>
+#include "wifi_pick.h"
 
 // One JSON record under one key: an NVS write of a single key is atomic, so
 // a power cut mid-save leaves the old settings or the new ones, never a mix.
@@ -17,8 +17,9 @@ static const std::string NO_PROFILE;
 static bool recordFromJson(const char* json, DeviceSettings& out) {
     JsonDocument doc;
     if (deserializeJson(doc, json) || !doc.is<JsonObject>()) return false;
-    out.ssid = doc["ssid"] | "";
-    out.pass = doc["pass"] | "";
+    out.networks.clear();
+    for (JsonObject n : doc["networks"].as<JsonArray>())
+        out.networks.push_back(setup_form::Network{n["ssid"] | "", n["pass"] | ""});
     out.hermes = doc["hermes"] | "";
     out.shim = doc["shim"] | "";
     out.backend = doc["backend"] | "local";
@@ -34,8 +35,12 @@ static bool recordFromJson(const char* json, DeviceSettings& out) {
 
 static String toJson(const DeviceSettings& s) {
     JsonDocument doc;
-    doc["ssid"] = s.ssid.c_str();
-    doc["pass"] = s.pass.c_str();
+    JsonArray networks = doc["networks"].to<JsonArray>();
+    for (const setup_form::Network& n : s.networks) {
+        JsonObject o = networks.add<JsonObject>();
+        o["ssid"] = n.ssid.c_str();
+        o["pass"] = n.pass.c_str();
+    }
     doc["hermes"] = s.hermes.c_str();
     doc["shim"] = s.shim.c_str();
     doc["backend"] = s.backend.c_str();
@@ -63,10 +68,14 @@ bool settingsInputFromJson(const char* json, SettingsInput& out) {
     JsonDocument doc;
     if (deserializeJson(doc, json) || !doc.is<JsonObject>()) return false;
     SettingsInput in;
-    in.ssid = member(doc, "ssid", stored.ssid);
+    // ssid / pass add or edit ONE network; absent ssid adds none. "pass":""
+    // makes the network open; an absent pass keeps the saved password of the
+    // same-named network (a saved open network stays open).
+    in.ssid = member(doc, "ssid", "");
+    const int saved = findNetwork(stored.networks, in.ssid);
     in.open = doc["pass"].is<const char*>() ? !doc["pass"].as<const char*>()[0]
-                                            : stored.pass.empty();
-    in.pass = member(doc, "pass", "");             // blank keeps it on the same network
+                                            : saved >= 0 && stored.networks[saved].pass.empty();
+    in.pass = member(doc, "pass", "");
     in.hermes = member(doc, "hermes", stored.hermes);
     in.shim = member(doc, "shim", stored.shim);
     in.backend = member(doc, "backend", stored.backend.empty() ? "local" : stored.backend);
@@ -82,6 +91,10 @@ bool settingsInputFromJson(const char* json, SettingsInput& out) {
     if (doc["forget"].is<const char*>()) in.forget.push_back(doc["forget"].as<const char*>());
     for (const char* f : doc["forget"].as<JsonArray>())
         if (f) in.forget.push_back(f);
+    if (doc["forgetWifi"].is<const char*>())
+        in.forgetNetworks.push_back(doc["forgetWifi"].as<const char*>());
+    for (const char* f : doc["forgetWifi"].as<JsonArray>())
+        if (f) in.forgetNetworks.push_back(f);
     out = in;
     return true;
 }
@@ -167,7 +180,10 @@ bool settingsUseAgent(size_t index) {
     return settingsSave(s);
 }
 
-void settingsWifiBegin() {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(stored.ssid.c_str(), stored.pass.empty() ? nullptr : stored.pass.c_str());
+void settingsNetworkJoined(int index) {
+    std::vector<setup_form::Network> order = stored.networks;
+    if (!wifi_pick::promote(order, index)) return;
+    DeviceSettings s = stored;
+    s.networks = order;
+    if (settingsSave(s)) stored.networks = order;    // only the loop task touches the order
 }

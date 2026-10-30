@@ -173,7 +173,9 @@ Serial diagnostics: `[Timing]` (incl. per-turn
 fragmentation, `min` = low-water), `[Turn]`, `[TTSF]` (chunk fetch),
 `[Chunk]` (play), `[Speak]` (playback end + reason: done / abort /
 fetch-fail), `[Power]` (source, backlight, sleep/wake), `[Settings]` (load /
-save, never values), `[Setup]` (setup mode), `[SelfTest]` (boot reachability
+save, never values), `[Setup]` (setup mode), `[WiFi]` (scan and join:
+`joining <n>/<count> (try <k>)` is the saved network's position, never its name;
+`joined`; `scan failed`; the device's IP at boot), `[SelfTest]` (boot reachability
 check), `[OTA]` (boot-time WiFi update: running version, progress, failures),
 `[Lat]` (answer latency milestones from the Hermes request; `host/latency.py`
 reads them), `[Bench]` (bench builds).

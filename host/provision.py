@@ -4,8 +4,10 @@
 Reads the gitignored firmware/device.env (template: firmware/device.env.example)
 and sends one `settings {json}` line (firmware/include/console.h). The device
 checks it with the setup form's rules, stores it in NVS and restarts. The
-file's profile + key become one of the device's agents (up to 4) and the one
-in use; agents added earlier stay. backend="venice" switches the device to
+file's ssid + pass add a WiFi network (the device keeps up to 5 and joins the
+strongest in range; a name it already holds is edited, the oldest is dropped
+past 5). The file's profile + key become one of the device's agents (up to 4)
+and the one in use; agents added earlier stay. backend="venice" switches the device to
 the Venice backend instead: veniceKey is required then, and the Hermes
 members are ignored (they stay stored for a switch back).
 

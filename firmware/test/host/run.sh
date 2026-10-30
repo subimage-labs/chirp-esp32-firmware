@@ -37,6 +37,9 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/setup_form_test.cpp" -o "$out/setup_form_test"
 "$out/setup_form_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/wifi_pick_test.cpp" -o "$out/wifi_pick_test"
+"$out/wifi_pick_test"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/portal_layout_test.cpp" -o "$out/portal_layout_test"
 "$out/portal_layout_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \

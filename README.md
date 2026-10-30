@@ -67,7 +67,8 @@ anything:
    becomes reachable on your network, each behind its own key) and asks.
 6. Sends the agent to the device over USB and waits for the device's own
    check to report ready. The first time you also type your WiFi name and
-   password; later runs can leave the WiFi blank to keep the device's.
+   password; later runs can leave the WiFi blank (the device keeps its saved
+   networks) or add another one.
 
 ### Character look
 
@@ -128,7 +129,8 @@ page opens by itself:
 
 | Field | |
 |---|---|
-| WiFi network / password | the network Chirp joins (nearby networks are offered; tick *Open network* for one without a password) |
+| WiFi: saved networks | the networks Chirp remembers (up to 5, names only, never passwords): tick *Forget* to remove one. Chirp joins the strongest saved network in range, at boot and whenever it reconnects, so walking from one to another just works |
+| WiFi: add a network / password | adds a network to that list (blank name = add none; nearby networks are offered; tick *Open network* for one without a password; a name already saved is edited, a blank password keeps its saved one). The 6th network pushes out the one joined longest ago |
 | Hermes host | your Hermes machine as `host` or `host:port` (default port 8642) |
 | Agents | the agents already on the device: pick the one to *use*, tick *remove* to drop one |
 | Add an agent: profile name + API key | a profile that **already exists** on Hermes and its `API_SERVER_KEY` (in `~/.hermes/profiles/<name>/.env`; the default profile's is in `~/.hermes/.env`). Blank name = the default profile. Typing a new name does not create a profile: `host/pair.py --create NAME` does, and sends it here |
@@ -207,7 +209,8 @@ The **Setup** tab's actions are drawn as buttons: the agents (*NAME (in use)*,
 *View: Character* / *View: Chat*, *Set up on phone* (restarts into the
 setup hotspot and QR code) and *Restart* (reboots to the boot screen; the
 settings, the chat and the kept look stay). Under them sits the chirp! logo, then below the
-dotted rule, as plain rows: the firmware version, WiFi, address, Hermes host,
+dotted rule, as plain rows: the firmware version, WiFi (the joined network and its
+signal, or how many are saved while offline), address, Hermes host,
 speech server and battery. The dial scrolls through every row, so at the
 larger text sizes the info rows come into view too (the dial key does nothing
 on them). The **Chats** tab's *+ New chat* is a button the same way. Every
@@ -281,7 +284,7 @@ finds on the bottom line (the conversations menu does the same):
 
 | Message | Fix |
 |---|---|
-| WiFi failed; side key 3x = Setup | wrong WiFi name or password: Setup tab, *Set up on phone* |
+| WiFi failed; side key 3x = Setup | no saved network joined (wrong name or password, or none in range): Setup tab, *Set up on phone* |
 | Hermes key rejected | wrong API key for the agent: run `host/pair.py` again, or Setup tab, *Set up on phone* |
 | Hermes profile not found | the profile name doesn't exist on the gateway |
 | Hermes unreachable | the gateway isn't running or not reachable on the LAN (`host/pair.py` checks) |
