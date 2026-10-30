@@ -23,7 +23,6 @@ bool menuOpen();
 void menuEnter();                       // Chats tab; starts the list fetch
 void menuTick();                        // loop: takes a finished chat list
 void menuNext();                        // side tap: Chats → Theme → Chirper → Text → Setup → chat
-void menuPrev();                        // the tab before; from Chats, back to chat
 void menuClose();                       // straight back to chat (keyboard: Backspace)
 void menuMove(int32_t clicks, uint32_t perClickMs);
 void menuActivate();                    // encoder: new chat / resume / theme / font size / agent / setup

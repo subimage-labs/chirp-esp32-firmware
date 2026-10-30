@@ -192,7 +192,7 @@ static void listScrollbar(TFT_eSPI& tft, int top, int bottom, int first, int sho
 }
 
 static void chatsHint() {
-    uiMsg(CHIRP_TURN "=select  " CHIRP_PRESS "=open", Ink::Muted);
+    uiMsg(CHIRP_TURN "=select  " CHIRP_PRESS "=open" CHIRP_NEXT, Ink::Muted);
 }
 
 // One row per theme. The selection is the theme in use: turning the wheel
@@ -210,7 +210,8 @@ static void renderThemes(TFT_eSPI& tft, int top, int bottom) {
          f++, y += uiRowHeight(), shown++)
         drawRow(tft, THEMES[f].name, f == themeSel, y);
     listScrollbar(tft, listTop - 2, listTop - 2 + shown * uiRowHeight(), themeTop, shown, THEME_COUNT);
-    uiMsg(uiThemeLight() ? CHIRP_TURN "=theme  " CHIRP_PRESS "=dark" : CHIRP_TURN "=theme  " CHIRP_PRESS "=light",
+    uiMsg(uiThemeLight() ? CHIRP_TURN "=theme  " CHIRP_PRESS "=dark" CHIRP_NEXT
+                         : CHIRP_TURN "=theme  " CHIRP_PRESS "=light" CHIRP_NEXT,
           Ink::Muted);
 }
 
@@ -218,8 +219,8 @@ static void renderThemes(TFT_eSPI& tft, int top, int bottom) {
 // selection is the family in use: turning the wheel applies (and saves) each
 // as it lands on it; the encoder cycles the size S -> M -> L.
 static void textHint() {
-    char hint[40];
-    snprintf(hint, sizeof hint, CHIRP_TURN "=font  " CHIRP_PRESS "=size %c",
+    char hint[48];
+    snprintf(hint, sizeof hint, CHIRP_TURN "=font  " CHIRP_PRESS "=size %c" CHIRP_NEXT,
              fontSizeLetter(fontSizeNext(uiFontSize())));
     uiMsg(hint, Ink::Muted);
 }
@@ -263,7 +264,7 @@ static void activateText() {
 // encoder keeps the shown one.
 // Leaving without keeping restores the kept character (character.h).
 static void chirperHint() {
-    uiMsg(CHIRP_TURN "=browse  " CHIRP_PRESS "=keep", Ink::Muted);
+    uiMsg(CHIRP_TURN "=browse  " CHIRP_PRESS "=keep" CHIRP_NEXT, Ink::Muted);
 }
 
 static void renderChirper(TFT_eSPI& tft, int top, int bottom) {
@@ -498,16 +499,6 @@ void menuNext() {
         }
     }
     closeMenu();
-}
-
-void menuPrev() {
-    for (size_t i = 1; i < TAB_COUNT; i++) {
-        if (tab == TABS[i].tab) {
-            enterTab(TABS[i - 1].tab);
-            return;
-        }
-    }
-    menuClose();
 }
 
 void menuClose() {

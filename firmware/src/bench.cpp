@@ -45,7 +45,7 @@ static void status() {
     characterLookTags(keptTag, shownTag);
     Serial.printf("[Bench] state=%s menu=%s sel=%d/%d voice=%d hearing=%d "
                   "scroll=%d/%d follow=%d vol=%u playing=%d wifi=%d power=%s bat=%s view=%s avatar=%s "
-                  "look=%s/%s font=%s size=%c line=%d theme=%s mode=%s themecode=%u sidesel=%d\n",
+                  "look=%s/%s font=%s size=%c line=%d theme=%s mode=%s themecode=%u\n",
                   stateName(), menuTab(), sel, count, (int)voiceOn(),
                   (int)voiceHearing(), top, rows, (int)following, speechVolume(),
                   (int)speechPlaying(), (int)(WiFi.status() == WL_CONNECTED),
@@ -53,7 +53,7 @@ static void status() {
                   characterStateName(), keptTag, shownTag, uiFontFamilyName(uiFontFamily()),
                   fontSizeLetter(uiFontSize()), uiLineHeight(), uiThemeName(),
                   uiThemeLight() ? "light" : "dark",
-                  (unsigned)(uiThemeFamily() * 2 + (uiThemeLight() ? 1 : 0)), CHIRP_SIDE_SELECTS);
+                  (unsigned)(uiThemeFamily() * 2 + (uiThemeLight() ? 1 : 0)));
 }
 
 // avatar look                 print the kept look: 32 hex digits, or orig
@@ -164,8 +164,6 @@ void benchRun(String line) {
         const int32_t clicks = (sp < 0 ? args : args.substring(0, sp)).toInt();
         const uint32_t ms = sp < 0 ? 200 : args.substring(sp + 1).toInt();
         inputSimWheel(clicks, ms ? ms : 1);
-    } else if (line == "tab 1" || line == "tab -1") {      // a sideways trackball flick
-        inputSimTab(line.endsWith("-1") ? -1 : 1);
     } else if (line.startsWith("ask ") || line.startsWith("speak ")) {
         if (uiState != UI_IDLE || menuOpen())
             Serial.printf("[Bench] %s refused: not idle\n", line.startsWith("ask ") ? "ask" : "speak");

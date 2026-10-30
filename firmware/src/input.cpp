@@ -60,12 +60,10 @@ static void sampleKeys(void*) { keyRing.sample(millis(), encRaw(), sideRaw()); }
 
 // The wheel's detent source: the encoder on wheel boards, the trackball's
 // vertical axis on ball boards (roll up = clockwise), CHIRP_BALL_PULSES_PER_STEP
-// pulses per detent (balltap.h). A sideways flick is a tab step: right =
-// next, left = the one before.
+// pulses per detent (balltap.h); sideways rolls are not read.
 #if CHIRP_HAS_TRACKBALL
 static int32_t ballNet = 0;                  // detents not yet turned into events
 static BallSteps ballSteps(CHIRP_BALL_PULSES_PER_STEP);
-static BallTap flickRight, flickLeft;
 static int32_t ballPosition() {
     const int32_t up = trackballUp(), down = trackballDown();
 #if defined(BENCH_CMDS) && CHIRP_HAS_KEYBOARD
@@ -101,10 +99,6 @@ static void update() {
     keyReplay<GestureOut>(keyRing, gestures, now, keyLast, [](const GestureOut& out) {
         for (int i = 0; i < out.n; i++) push(out.ev[i]);
     });
-#if CHIRP_HAS_TRACKBALL
-    if (flickRight.feed(now, trackballRight())) push({InputType::Tab, 1, 0, 0, false, false});
-    if (flickLeft.feed(now, trackballLeft())) push({InputType::Tab, -1, 0, 0, false, false});
-#endif
 
     const int32_t pos = wheelPosition();
     if (pos != wheelConsumed) {
@@ -176,6 +170,4 @@ void inputSimWheel(int32_t clicks, uint32_t perClickMs) {
     simClicks += clicks;
     simPerClickMs = perClickMs;
 }
-
-void inputSimTab(int32_t dir) { push({InputType::Tab, dir > 0 ? 1 : -1, 0, 0, false, false}); }
 #endif

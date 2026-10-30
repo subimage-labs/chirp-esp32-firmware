@@ -15,7 +15,6 @@ enum class InputType : uint8_t {
     EncRelease,  // encoder key up (debounced); heldMs = how long it was down; chord
     SideHold,    // side key held past BTN_HOLD_MS (fires once per press)
     SideRelease, // side key up; holdFired = SideHold was emitted; chord
-    Tab,         // a sideways trackball flick: clicks = +1 next tab, -1 the tab before
 };
 
 struct InputEvent {
@@ -40,5 +39,4 @@ void inputCancelDouble();         // the next encoder press cannot pair
 #ifdef BENCH_CMDS
 void inputSimKey(bool encoder, bool down);
 void inputSimWheel(int32_t clicks, uint32_t perClickMs);
-void inputSimTab(int32_t dir);           // a sideways flick: +1 next tab, -1 the tab before
 #endif
