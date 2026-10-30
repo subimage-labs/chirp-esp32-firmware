@@ -78,7 +78,7 @@
 #ifndef DEEP_SLEEP_MS
 #define DEEP_SLEEP_MS     7200000UL  // idle → deep sleep (reboot on wake)
 #endif
-#define BACKLIGHT_DIM_DUTY 40         // of 255 (LEDC PWM on TFT_BL)
+#define BACKLIGHT_DIM_DUTY 40         // of 255: LEDC PWM duty, or level 3 of 16 (CHIRP_BL_PULSE)
 #ifndef ANIM_SLOW_MS
 #define ANIM_SLOW_MS       20000UL    // idle → character animation drops to a trickle
 #endif

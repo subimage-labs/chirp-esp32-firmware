@@ -9,6 +9,7 @@
 #define CHIRP_ROTATION 1          // landscape 320x240, upright (LILYGO's examples use 1)
 #define CHIRP_MIC_ES7210 1        // ES7210 ADC, configured over I2S-bus I2C
 #define CHIRP_BATTERY_ADC 1       // divider on an ADC pin, no charger comms
+#define CHIRP_BL_PULSE 1          // backlight chip: 16 levels set by pulse count (ui.cpp), never PWM
 
 // The setup screen's way back out (the portal polls the keyboard for it;
 // the words are portal_layout.h's, so its test measures them).

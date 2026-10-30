@@ -12,7 +12,33 @@
 #include "psram_alloc.h"
 
 static TFT_eSPI tft;
+#if CHIRP_BL_PULSE
+// The T-Deck's backlight chip (LILYGO's setBrightness): a rising edge turns it
+// on at the brightest of 16 levels, each short low pulse steps one level down
+// (wrapping from 1 to 16), and 3 ms low turns it off. PWM on its pin is a pulse
+// train: the level it lands on depends on history (a wake once stayed dark).
+static uint8_t blLevel = 0;                       // loop: 0 = off, 1..16
+static void blSet(uint8_t level) {
+    if (level == 0) {
+        digitalWrite(TFT_BL, LOW);
+        delay(3);
+        blLevel = 0;
+        return;
+    }
+    if (blLevel == 0) {
+        digitalWrite(TFT_BL, HIGH);
+        blLevel = 16;
+        delayMicroseconds(30);
+    }
+    for (int n = (16 + blLevel - level) % 16; n > 0; n--) {
+        digitalWrite(TFT_BL, LOW);
+        digitalWrite(TFT_BL, HIGH);
+    }
+    blLevel = level;
+}
+#else
 static const uint8_t BL_LEDC_CH = 7;
+#endif
 
 // The theme choice lives beside the device settings but in its own keys: it
 // changes live, without the settings' save-and-restart. Stored by name, so
@@ -399,17 +425,26 @@ void uiBegin() {
     tft.init();
     tft.setRotation(CHIRP_ROTATION);             // board.h: landscape 320x170 / portrait 240x320
     fontBegin();
+#if CHIRP_BL_PULSE
+    pinMode(TFT_BL, OUTPUT);
+    blSet(16);
+#else
     ledcSetup(BL_LEDC_CH, 2000, 8);               // backlight PWM (dimming)
     ledcAttachPin(TFT_BL, BL_LEDC_CH);
     ledcWrite(BL_LEDC_CH, 255);
+#endif
 }
 
 void uiPanelOff() {
     tft.writecommand(TFT_DISPOFF);
     tft.writecommand(TFT_SLPIN);
+#if CHIRP_BL_PULSE
+    blSet(0);
+#else
     ledcDetachPin(TFT_BL);
     pinMode(TFT_BL, OUTPUT);
     digitalWrite(TFT_BL, LOW);                    // the line floats high otherwise
+#endif
     gpio_hold_en((gpio_num_t)TFT_BL);
 }
 
@@ -417,11 +452,21 @@ void uiPanelOn() {
     gpio_hold_dis((gpio_num_t)TFT_BL);
     tft.init();
     tft.setRotation(CHIRP_ROTATION);
+#if CHIRP_BL_PULSE
+    blSet(16);
+#else
     ledcAttachPin(TFT_BL, BL_LEDC_CH);
     ledcWrite(BL_LEDC_CH, 255);
+#endif
 }
 
-void uiBacklight(uint8_t duty) { ledcWrite(BL_LEDC_CH, duty); }
+void uiBacklight(uint8_t duty) {
+#if CHIRP_BL_PULSE
+    blSet(duty == 0 ? 0 : (uint8_t)(1 + (duty * 15 + 127) / 255));   // 255 -> 16
+#else
+    ledcWrite(BL_LEDC_CH, duty);
+#endif
+}
 void uiPanelBlank(bool off) { tft.writecommand(off ? TFT_DISPOFF : TFT_DISPON); }
 
 TFT_eSPI& uiTft() { return tft; }
