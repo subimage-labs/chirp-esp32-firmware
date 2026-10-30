@@ -62,6 +62,7 @@ void uiPanelInvert(bool on);            // send INVON / INVOFF (bench.h)
 void uiPanelStatus();                   // read the panel's status registers (bench.h)
 void uiPanelReg(uint8_t cmd, const uint8_t* data, int n);   // write a panel register live (bench.h)
 void uiPanelTest(bool checker, bool shifted);   // full-screen test pattern (bench.h)
+void uiPanelFill(uint16_t c);   // whole screen one RGB565 color, no INVON re-send for 600 ms (bench.h)
 #endif
 
 // Compact strip (the menus): status text in the small size, no battery.

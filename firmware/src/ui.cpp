@@ -209,6 +209,22 @@ int uiTextWidth(const char* s) {
 
 int uiTextWidth(const String& s) { return uiTextWidth(s.c_str()); }
 
+// Pushes columns [L, R) of the line sprite to row y in slices, re-sending the
+// panel's inversion after each (uiPanelHold): a text stream can drop it, and a
+// slice is then the longest it stays dropped (a thin column, not a band).
+// T-Deck camera, Rose Pine dark menu repaints, flash frames per run: one push
+// per line 5, 32 px slices 1-3, 8 px slices 3-7 (each slice is a new transfer).
+static const int PUSH_SLICE = 32;   // px
+static void pushLine(int L, int R, int y, int h) {
+    for (int x = L; x < R; x += PUSH_SLICE) {
+        const int w = min(PUSH_SLICE, R - x);
+        tft.startWrite();
+        lineSpr.pushSprite(x, y, x, 0, w, h);
+        tft.endWrite();
+        uiPanelHold();
+    }
+}
+
 // Draws s with its top-left at (x, y), glyph i in colorOf(i), and returns the
 // width. Pushes exactly the columns the text touches (its advance, plus any
 // ink that overhangs it), so neighbours drawn edge to edge stay intact.
@@ -236,11 +252,7 @@ static int paintText(const char* s, int x, int y, uint16_t bg, ColorOf colorOf) 
     }
     lo = max(lo, f0);
     hi = min(hi, f1);
-    if (hi > lo) {
-        tft.startWrite();                               // one transaction for all rows
-        lineSpr.pushSprite(lo, y, lo, 0, hi - lo, h);
-        tft.endWrite();
-    }
+    if (hi > lo) pushLine(lo, hi, y, h);
     return w;
 }
 
@@ -270,9 +282,7 @@ static void paintWindow(const char* s, int w, int textX, int gap, int y, uint16_
             cx += adv;
         }
     }
-    tft.startWrite();
-    lineSpr.pushSprite(L, y, L, 0, R - L, h);
-    tft.endWrite();
+    pushLine(L, R, y, h);
 }
 
 int uiText(const char* s, int x, int y, Ink fg, Ink bg) {
@@ -608,6 +618,15 @@ void uiPanelTest(bool checker, bool shifted) {
     Serial.printf("[Bench] panel test %s%s\n", checker ? "checker" : "gray", shifted ? " 1" : "");
 }
 
+static uint32_t holdOffUntilMs = 0;            // loop: uiPanelFill pauses uiPanelHold
+void uiPanelFill(uint16_t c) {
+    chatValid = false;
+    stripValid = false;
+    tft.fillScreen(c);
+    holdOffUntilMs = millis() + 600;
+    Serial.printf("[Bench] panel fill %04x\n", c);
+}
+
 // Reads `bits` bits after command `cmd`, bit-banged on the panel's one
 // bidirectional data line (SDA = TFT_MOSI): SCK and MOSI leave the SPI
 // peripheral for the read and are attached back after it.
@@ -654,10 +673,17 @@ void uiPanelStatus() {
 #endif
 
 // The panel drops its inversion on some pixel streams (confirmed by reading
-// RDDIM back: rows of "Chats" in Rose Pine dark's Muted ink turn it off), and
-// with inversion off every color shows inverted. INVON on an inverted panel
-// changes nothing, so it is re-sent after each loop pass's drawing.
+// RDDIM back: rows of "Chats" in Rose Pine dark's Muted ink turn it off; on the
+// T-Deck a camera sees every Rose Pine dark menu repaint flash white), and with
+// inversion off every color shows inverted. Flat fills never do it (camera,
+// every palette color and Muted blend). INVON on an inverted panel changes
+// nothing, so it is re-sent after every text line push (uiText, the status
+// strip), which keeps a dropped inversion to one line's push, and after each
+// loop pass's drawing for everything else.
 void uiPanelHold() {
+#ifdef BENCH_CMDS
+    if ((int32_t)(millis() - holdOffUntilMs) < 0) return;   // a panel fill test is showing
+#endif
     tft.writecommand(TFT_INVON);
 }
 

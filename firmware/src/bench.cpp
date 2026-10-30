@@ -220,6 +220,8 @@ void benchRun(String line) {
         uiPanelReg(cmd, b, n);
     } else if (line == "panel test gray" || line.startsWith("panel test checker")) {
         uiPanelTest(line.indexOf("checker") > 0, line.endsWith(" 1"));
+    } else if (line.startsWith("panel fill ")) {
+        uiPanelFill((uint16_t)strtoul(line.c_str() + 11, nullptr, 16));
     } else if (line == "view character" || line == "view transcript") {
         characterSetOn(line.endsWith("character"));
         if (!menuOpen()) appRedraw();

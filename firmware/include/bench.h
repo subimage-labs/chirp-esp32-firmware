@@ -22,6 +22,9 @@
 //                               reg b7 35`): drive-setting tests; the next boot restores
 //   panel test checker [1]|gray paint a 40 px black/white checkerboard (1: shifted
 //                               half a cell) or flat mid-gray over the whole screen
+//   panel fill <rgb565 hex>     the whole screen one color, then no INVON re-send
+//                               for 600 ms: a pixel stream that drops the panel's
+//                               inversion stays visible (camera test)
 //   avatar variant <n>          keep variant n of the current generator (0 = the
 //                               agent's Original: clears the kept look); saved
 //                               per agent; the Chirper tab is driven with
