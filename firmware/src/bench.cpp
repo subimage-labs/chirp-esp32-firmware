@@ -198,6 +198,13 @@ void benchRun(String line) {
         uiPanelInvert(line.endsWith("on"));
     } else if (line == "panel status") {
         uiPanelStatus();
+    } else if (line.startsWith("ttsvoice ")) {             // venice: audition a TTS model + voice
+        const String a = line.substring(9);
+        const int sp = a.indexOf(' ');
+        if (uiState != UI_IDLE || speechPlaying()) Serial.println("[Bench] ttsvoice refused: not idle");
+        else if (a == "off") speechBenchVoice("", "");
+        else if (sp > 0) speechBenchVoice(a.substring(0, sp).c_str(), a.substring(sp + 1).c_str());
+        if (uiState == UI_IDLE && !speechPlaying()) Serial.printf("[Bench] ttsvoice %s\n", a.c_str());
     } else if (line.startsWith("panel reg ")) {
         uint8_t b[16];
         int n = 0;

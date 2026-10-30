@@ -17,6 +17,8 @@
 #include "settings.h"
 #include "logo_draw.h"
 #include "setup_view.h"
+#include "speech.h"
+#include "venice_policy.h"
 #include "ui.h"
 
 static const int MENU_SESSIONS = 18;
@@ -86,7 +88,10 @@ const char* menuTab() {
 
 // Setup rows (setup_view.h): the agents, the screen choice, "change
 // settings", a rule, then the info rows. The wheel selects every row but the rule.
-static setupview::Layout setupLayout() { return {(int)settingsStored().agents.size()}; }
+static setupview::Layout setupLayout() {
+    const DeviceSettings& s = settingsStored();
+    return setupview::Layout((int)s.agents.size(), s.backend == "venice");   // the voice row: venice only
+}
 
 void menuPosition(int& sel, int& count) {
     if (tab == Tab::Theme) {
@@ -340,6 +345,9 @@ static void setupHint() {
     case setupview::Kind::Restart:
         uiMsg(CHIRP_PRESS "=restart (keeps the chat)", Ink::Muted);
         break;
+    case setupview::Kind::Voice:
+        uiMsg(CHIRP_PRESS "=next voice", Ink::Muted);
+        break;
     case setupview::Kind::Screen:
         uiMsg(characterOn() ? CHIRP_PRESS "=show the chat" : CHIRP_PRESS "=show the character", Ink::Muted);
         break;
@@ -380,6 +388,9 @@ static void renderSetup(TFT_eSPI& tft, int top, int bottom) {
             else drawButton(tft, "Switch to " + name, true, sel, y);
             break;
         }
+        case setupview::Kind::Voice:
+            drawButton(tft, String("Voice: ") + venice_policy::VOICES[speechVoice()].label, true, sel, y);
+            break;
         case setupview::Kind::Screen:
             drawButton(tft, characterOn() ? "View: Character" : "View: Chat", true, sel, y);
             break;
@@ -537,6 +548,11 @@ static void activateSetup() {
     const DeviceSettings& s = settingsStored();
     const setupview::Layout l = setupLayout();
     switch (l.kind(setupSel)) {
+    case setupview::Kind::Voice:                    // saved; Chirp says hello in the new voice
+        speechSetVoice(venice_policy::voiceNext(speechVoice()));
+        if (uiState == UI_IDLE) speechPreview(venice_policy::VOICE_PREVIEW);
+        menuRender();
+        return;
     case setupview::Kind::Screen:                   // live, saved; the chat shows it on exit
         characterSetOn(!characterOn());
         menuRender();

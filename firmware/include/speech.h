@@ -36,6 +36,17 @@ void speechBegin();              // speaker pins, volume
 // Loop task.
 uint8_t speechVolume();
 void speechSetVolume(uint8_t v);
+// Venice: the voice, an index into venice_policy.h VOICES, saved on the device.
+int speechVoice();
+void speechSetVoice(int i);
+// Say `text` in the current voice now, outside any turn (the Setup tab's voice
+// row; caller: idle). A one-shot task (app.h: preview) fetches it; the loop
+// plays it through speechPreviewTick, every pass. False: one is fetching.
+bool speechPreview(const char* text);
+void speechPreviewTick();
+#ifdef BENCH_CMDS
+void speechBenchVoice(const char* model, const char* voice);   // venice TTS audition ("" = built-in)
+#endif
 bool speechPlaying();
 bool speechSpeaking();           // playing an answer chunk (not the chirp or the error tone)
 int speechSpokenChars();         // while speaking: how far into the answer's spoken text

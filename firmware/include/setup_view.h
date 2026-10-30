@@ -1,7 +1,7 @@
 // setup_view.h — the Setup tab as one scrolling list, as pure logic.
 //
-// Rows, top to bottom: the agents, the screen choice, "Set up on phone",
-// "Restart", the chirp! logo, a dotted rule, then the info rows (firmware,
+// Rows, top to bottom: the agents, the screen choice, the voice (venice mode),
+// "Set up on phone", "Restart", the chirp! logo, a dotted rule, then the info rows (firmware,
 // WiFi, ...). The agents, the screen choice, "Set up on phone" and "Restart"
 // are actions, drawn as buttons (taller than the plain rows); the info rows
 // only show what the device runs. The wheel selects every row except the logo
@@ -13,26 +13,33 @@ namespace setupview {
 
 static const int INFO_ROWS = 6;     // what the device runs and talks to (menu.cpp INFO_LABELS)
 
-enum class Kind { Agent, Screen, Change, Restart, Logo, Rule, Info };
+enum class Kind { Agent, Screen, Voice, Change, Restart, Logo, Rule, Info };
 
 inline bool isAction(Kind k) {
-    return k == Kind::Agent || k == Kind::Screen || k == Kind::Change || k == Kind::Restart;
+    return k == Kind::Agent || k == Kind::Screen || k == Kind::Voice || k == Kind::Change ||
+           k == Kind::Restart;
 }
 inline bool selectable(Kind k) { return k != Kind::Logo && k != Kind::Rule; }
 
+// `voice`: the venice voice row (venice mode only), right after the screen choice.
 struct Layout {
     int agents;                     // rows [0, agents) are the agents
+    bool voice;
+    Layout(int agents, bool voice = false) : agents(agents), voice(voice) {}
+    int v() const { return voice ? 1 : 0; }
     int screenRow() const { return agents; }
-    int changeRow() const { return agents + 1; }
-    int restartRow() const { return agents + 2; }
-    int logoRow() const { return agents + 3; }
-    int ruleRow() const { return agents + 4; }
-    int firstInfo() const { return agents + 5; }
-    int total() const { return agents + 5 + INFO_ROWS; }
+    int voiceRow() const { return voice ? agents + 1 : -1; }
+    int changeRow() const { return agents + 1 + v(); }
+    int restartRow() const { return agents + 2 + v(); }
+    int logoRow() const { return agents + 3 + v(); }
+    int ruleRow() const { return agents + 4 + v(); }
+    int firstInfo() const { return agents + 5 + v(); }
+    int total() const { return agents + 5 + v() + INFO_ROWS; }
 
     Kind kind(int row) const {
         if (row < agents) return Kind::Agent;
         if (row == screenRow()) return Kind::Screen;
+        if (row == voiceRow()) return Kind::Voice;
         if (row == changeRow()) return Kind::Change;
         if (row == restartRow()) return Kind::Restart;
         if (row == logoRow()) return Kind::Logo;

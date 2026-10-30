@@ -6,6 +6,8 @@
 //   fetch — TTS chunk fetch task (core 0): synthesis downloads (speech.cpp).
 //   chatlist — one-shot session-list task (core 0): the Chats list
 //          (menu.cpp), so a slow gateway never stalls the side key.
+//   preview — one-shot voice-preview task (core 0): fetches the Setup tab's
+//          "Hi, I'm Chirp!" in the chosen voice (speech.cpp); the loop plays it.
 //   keys  — esp_timer task, every 5 ms: samples the two keys (input.cpp).
 //   kbd   — keyboard poll task (core 1, above the loop; keyboard boards):
 //           reads the key matrix every 10 ms (keyboard.cpp); typed keys go

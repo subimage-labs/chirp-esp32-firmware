@@ -16,6 +16,8 @@
 //   panel invert on|off         send the panel INVON / INVOFF (colour-state checks)
 //   panel status                read the panel's RDDST/RDDPM/RDDMADCTL/RDDCOLMOD/RDDIM
 //                               registers over MISO: `[Bench] panel st=.. dpm=.. ...`
+//   ttsvoice <model> <voice>|off  venice mode: synthesise with this TTS model and
+//                               voice instead of the built-in ones (audition)
 //   panel reg <cmd> [bytes...]  write a panel register live, all hex (e.g. `panel
 //                               reg b7 35`): drive-setting tests; the next boot restores
 //   panel test checker [1]|gray paint a 40 px black/white checkerboard (1: shifted

@@ -96,4 +96,22 @@ inline const char* httpError(int code) {
     }
 }
 
+// The voices the Setup tab offers (TTS_MODEL's), chosen by ear on the T-Deck's
+// speaker. Stored by id (NVS chirp/ttsVoice), so reordering never changes what
+// a device speaks with; an unknown id (a voice dropped here) is the first.
+struct Voice {
+    const char* label;      // the Setup row: "Voice: Heart"
+    const char* id;         // Kokoro's voice id
+};
+static const Voice VOICES[] = {{"Sky", "af_sky"}, {"Heart", "af_heart"}, {"Bella", "af_bella"}};
+static const int VOICE_COUNT = (int)(sizeof(VOICES) / sizeof(VOICES[0]));
+static const char VOICE_PREVIEW[] = "Hi, I'm Chirp!";
+
+inline int voiceIndex(const std::string& id) {
+    for (int i = 0; i < VOICE_COUNT; i++)
+        if (id == VOICES[i].id) return i;
+    return 0;
+}
+inline int voiceNext(int i) { return (i + 1) % VOICE_COUNT; }
+
 }  // namespace venice_policy

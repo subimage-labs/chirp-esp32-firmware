@@ -4,6 +4,7 @@
 #include <FS.h>
 #include <FSImpl.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <WiFi.h>
 
 #include <memory>
@@ -29,6 +30,25 @@ static Audio audio(false, 3, I2S_NUM_1);          // playback owns I2S1
 static uint8_t volume = DEFAULT_VOLUME;           // loop
 static bool playing = false;                      // loop (eof callback runs in audio.loop)
 static bool chirping = false;                     // loop: what plays is the chirp
+static uint8_t* previewBuf = nullptr;            // loop: a voice preview the decoder reads
+
+// The venice voice (venice_policy.h VOICES), saved by id in NVS chirp/ttsVoice.
+// The loop sets it (speechSetVoice); the fetch and preview tasks copy it per
+// request under the lock.
+static portMUX_TYPE voiceMux = portMUX_INITIALIZER_UNLOCKED;
+static char voiceId[24] = "";
+static const char* VOICE_NVS_NAMESPACE = "chirp";
+static const char* VOICE_NVS_KEY = "ttsVoice";
+static void voiceCopy(char* out, size_t n) {
+    portENTER_CRITICAL(&voiceMux);
+    strlcpy(out, voiceId, n);
+    portEXIT_CRITICAL(&voiceMux);
+}
+static void voiceStore(const char* id) {
+    portENTER_CRITICAL(&voiceMux);
+    strlcpy(voiceId, id, sizeof voiceId);
+    portEXIT_CRITICAL(&voiceMux);
+}
 
 // --- chunk pipeline ---
 static SentencePacker packer(CHUNK_MIN_SENTS, CHUNK_MIN_WORDS, CHUNK_MAX_WORDS,
@@ -131,6 +151,30 @@ static fs::FS memFs(memFsImpl);
 void speechBegin() {
     audio.setPinout(SPK_BCLK_PIN, SPK_LRCLK_PIN, SPK_DIN_PIN);
     audio.setVolume(volume);   // 21 = unity in the lib's gain table
+    String id;
+    Preferences prefs;
+    if (prefs.begin(VOICE_NVS_NAMESPACE, true)) {   // read-only open fails before first save
+        id = prefs.getString(VOICE_NVS_KEY, "");
+        prefs.end();
+    }
+    voiceStore(venice_policy::VOICES[venice_policy::voiceIndex(id.c_str())].id);
+}
+
+int speechVoice() {
+    char v[sizeof voiceId];
+    voiceCopy(v, sizeof v);
+    return venice_policy::voiceIndex(v);
+}
+
+void speechSetVoice(int i) {
+    const char* id = venice_policy::VOICES[i % venice_policy::VOICE_COUNT].id;
+    voiceStore(id);
+    Preferences prefs;
+    if (prefs.begin(VOICE_NVS_NAMESPACE, false)) {
+        prefs.putString(VOICE_NVS_KEY, id);
+        prefs.end();
+    }
+    Serial.printf("[Speak] voice %s\n", id);
 }
 
 // ---------------------------------------------------------------- loop side
@@ -203,13 +247,18 @@ static bool openMemory(const uint8_t* data, size_t size) {
     return audio.connecttoFS(memFs, "/sound.mp3");
 }
 
-// Whatever plays is over: close the decoder's file, free a held chunk.
+// Whatever plays is over: close the decoder's file, free a held chunk or a
+// preview.
 static void silence() {
     if (playing) {
         audio.stopSong();
         playing = false;
     }
     releaseHeld();
+    if (previewBuf) {
+        heap_caps_free(previewBuf);
+        previewBuf = nullptr;
+    }
 }
 
 void speechChirp() {
@@ -286,6 +335,17 @@ SpeakStep speechTick() {
 }
 
 // ---------------------------------------------------------------- fetch task
+#ifdef BENCH_CMDS
+// Bench `ttsvoice`: a venice TTS model and voice to audition instead of the
+// built-in ones. The loop sets it only while nothing speaks (bench.cpp), the
+// fetch task reads it per chunk.
+static char benchTtsModel[48] = "", benchTtsVoice[40] = "";
+void speechBenchVoice(const char* model, const char* voice) {
+    strlcpy(benchTtsModel, model, sizeof benchTtsModel);
+    strlcpy(benchTtsVoice, voice, sizeof benchTtsVoice);
+}
+#endif
+
 static void ttsFetchPSRAM(const std::string& text, uint8_t*& out, size_t& outSize) {
     out = nullptr;
     outSize = 0;
@@ -293,12 +353,20 @@ static void ttsFetchPSRAM(const std::string& text, uint8_t*& out, size_t& outSiz
     JsonDocument req;
     if (venice) {
         req["model"] = venice_policy::TTS_MODEL;
+#ifdef BENCH_CMDS
+        if (benchTtsModel[0]) req["model"] = benchTtsModel;
+#endif
         // Venice answers WAV (labelled audio/mpeg) unless asked for mp3, and
         // the decoder plays mp3 only (measured live: 528 KB WAV vs 11 KB mp3).
         req["response_format"] = "mp3";
     }
     req["input"] = text.c_str();
-    req["voice"] = TTS_VOICE;
+    char v[sizeof voiceId];                           // lives until serializeJson below
+    voiceCopy(v, sizeof v);
+    req["voice"] = venice ? (const char*)v : TTS_VOICE;   // the chosen voice (venice)
+#ifdef BENCH_CMDS
+    if (venice && benchTtsVoice[0]) req["voice"] = benchTtsVoice;
+#endif
     String body;
     serializeJson(req, body);
     if (venice && !veniceClock(8000)) return;
@@ -338,6 +406,55 @@ static void ttsFetchPSRAM(const std::string& text, uint8_t*& out, size_t& outSiz
     http.end();
     if (got == (size_t)len) { out = buf; outSize = got; }
     else heap_caps_free(buf);
+}
+
+// ---------------------------------------------------------------- voice preview
+// One short line in the current voice, outside any turn (the Setup tab's
+// voice row): a one-shot task (app.h: preview) fetches it, the loop plays it
+// from memory like the chirp and frees it once the decoder is done with it.
+static std::string previewText;                       // loop writes before the task starts
+static std::atomic<uint8_t*> previewReady{nullptr};   // task -> loop: the fetched MP3
+static size_t previewReadySize = 0;                   // written before previewReady (release)
+static std::atomic<bool> previewFetching{false};
+
+static void previewTask(void*) {
+    uint8_t* buf = nullptr;
+    size_t n = 0;
+    ttsFetchPSRAM(previewText, buf, n);
+    if (buf) {
+        previewReadySize = n;
+        previewReady.store(buf, std::memory_order_release);
+    } else {
+        Serial.println("[Speak] preview fetch failed");
+    }
+    previewFetching.store(false, std::memory_order_release);
+    vTaskDelete(nullptr);
+}
+
+bool speechPreview(const char* text) {
+    if (previewFetching.load(std::memory_order_acquire)) return false;   // one at a time
+    previewText = text;
+    previewFetching.store(true, std::memory_order_release);
+    if (xTaskCreatePinnedToCore(previewTask, "preview", 16384, nullptr, 1, nullptr, 0) != pdPASS) {
+        previewFetching.store(false);
+        return false;
+    }
+    return true;
+}
+
+void speechPreviewTick() {
+    if (uint8_t* ready = previewReady.exchange(nullptr, std::memory_order_acquire)) {
+        silence();                                    // a previous preview (or a tone) ends here
+        previewBuf = ready;
+        playing = openMemory(previewBuf, previewReadySize);
+        chirping = false;
+        Serial.printf("[Speak] preview sz=%u playing=%d\n", (unsigned)previewReadySize, (int)playing);
+        if (!playing) silence();                      // a failed open closed the file: free it
+        return;
+    }
+    if (!previewBuf) return;
+    if (playing) audio.loop();
+    if (!playing) silence();                          // eof: the decoder is done with it
 }
 
 // Fetches queued chunks in order, one PSRAM slot ahead of playback. Exits
