@@ -216,9 +216,6 @@ static void doAct(Act a, const InputEvent& ev) {
     case Act::MenuNext:
         menuNext();
         break;
-    case Act::MenuPrev:
-        menuPrev();
-        break;
     case Act::OpenMenu:
         openMenu();
         break;
@@ -263,7 +260,7 @@ static void dispatch(const InputEvent& ev) {
                        sideHoldActed,
                        BTN_HOLD_MS,
                        BTN_TAP_MS};
-    doAct(CHIRP_SIDE_SELECTS ? routeSideSelects(ev, ctx) : route(ev, ctx), ev);
+    doAct(route(ev, ctx), ev);
 }
 
 // A voice toggle deferred during THINKING applies once the worker has handed

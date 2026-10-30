@@ -37,21 +37,19 @@
 // --- Controls ---
 // The keyboard's mic key is the encoder key (hold to talk, double-tap =
 // voice mode); keyboard.h reads it from the key matrix, so it has no pin.
-// The trackball click is the side key: tap = menu, and in the menu it picks
-// (CHIRP_SIDE_SELECTS); hold + roll = volume. Roll up/down = the wheel;
-// flick left/right = the previous/next menu tab (balltap.h). Keys type;
-// Enter sends (picks in the menu), Backspace leaves the menu.
+// The trackball click is the side key, as on the T-Embed: tap = menu, then
+// next tab (after the last, back to the chat); hold + roll = volume. Roll
+// up/down = the wheel; rolling sideways does nothing. Keys type; Enter sends
+// (in the menu it acts on the row, like the encoder press), Backspace leaves
+// the menu.
 #define PTT_BTN_PIN      0       // trackball click (GPIO0, the BOOT strap)
 #define ENCODER_A_PIN    -1      // no wheel: the trackball feeds the same events
 #define ENCODER_B_PIN    -1
 #define ENCODER_BTN_PIN  -1      // the mic key, over I2C (keyboardMicDown)
-#define CHIRP_SIDE_SELECTS 1     // a side tap in the menu picks; tabs change by flicks
 
 // --- Trackball ---
 #define TRACKBALL_UP_PIN    3
 #define TRACKBALL_DOWN_PIN  15
-#define TRACKBALL_LEFT_PIN  1
-#define TRACKBALL_RIGHT_PIN 2
 #define CHIRP_BALL_PULSES_PER_STEP 2   // trackball pulses per wheel detent (balltap.h)
 
 // --- Keyboard (LILYGO's keyboard firmware on the ESP32-C3, I2C, raw mode:
@@ -68,11 +66,14 @@
 // Keys that may wake the chip from deep sleep (RTC-capable, active low).
 #define CHIRP_WAKE_KEYS {PTT_BTN_PIN}
 
-// The two controls' names in the hints ("Ball=select  Click=open").
+// The controls' names in the hints ("Ball=select  Enter=open  Click=next"):
+// the ball selects, Enter acts on the selection, a ball click (the side key)
+// is the next tab. CHIRP_NEXT ends the menu tabs' hints.
 #define CHIRP_TURN "Ball"
-#define CHIRP_PRESS "Click"
-#define CHIRP_WIFI_HELP "WiFi failed: Click, then Setup tab"
+#define CHIRP_PRESS "Enter"
+#define CHIRP_NEXT "  Click=next"
+#define CHIRP_WIFI_HELP "WiFi failed: Click 5x = Setup"
 
 // The READY screen's hint lines.
 #define CHIRP_HINT1 "Hold the mic key to talk"
-#define CHIRP_HINT2 "Type, enter to send"
+#define CHIRP_HINT2 "Enter to send, Click for menu"

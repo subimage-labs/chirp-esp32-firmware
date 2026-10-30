@@ -268,7 +268,13 @@ static void labels() {
         CHECKF(fitText("Fits", rowW, width) == "Fits", n);
         for (const char* hint : {"Wheel=select  Encoder=open  Side=Theme",
                                  "Encoder=change settings on phone", "Encoder=switch agent (restarts)",
-                                 "Wheel=font  Encoder=size M"}) {
+                                 "Wheel=font  Encoder=size M",
+                                 "Ball=select  Enter=open  Click=next",
+                                 "Ball=theme  Enter=light  Click=next",
+                                 "Ball=font  Enter=size M  Click=next",
+                                 "Ball=browse  Enter=keep  Click=next",
+                                 "WiFi failed: Click 5x = Setup",
+                                 "Hold the mic key to talk", "Enter to send, Click for menu"}) {
             const std::string h = fitText(hint, SCREEN_W - 12, width);   // uiMsg's rule
             CHECKF(width(h.c_str()) <= SCREEN_W - 12, n);
         }

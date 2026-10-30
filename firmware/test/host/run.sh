@@ -31,9 +31,6 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/route_test.cpp" -o "$out/route_test"
 "$out/route_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
-    "$here/route_ball_test.cpp" -o "$out/route_ball_test"
-"$out/route_ball_test"
-g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/keymap_test.cpp" -o "$out/keymap_test"
 "$out/keymap_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
