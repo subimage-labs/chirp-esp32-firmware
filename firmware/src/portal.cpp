@@ -79,14 +79,17 @@ static void sendForm(const SettingsInput& v, bool paired, const char* error) {
     h.reserve(6144 + sizeof(LOGO_WEB_PNG));
     h += "<!doctype html><html><head><meta charset=utf-8>"
          "<meta name=viewport content='width=device-width,initial-scale=1'>"
+         "<meta name=color-scheme content=light>"   // a phone in dark mode kept black text on dark
          "<title>Chirp setup</title><style>"
-         "body{font-family:system-ui,sans-serif;max-width:30em;margin:1em auto;padding:0 1em}"
+         "body{font-family:system-ui,sans-serif;max-width:30em;margin:1em auto;padding:0 1em;"
+         "background:#fff;color:#111}"
          "label{display:block;margin-top:1em;font-weight:600}"
          "input{display:block;width:100%;box-sizing:border-box;padding:.6em;font-size:1em;"
          "font-weight:400;margin-top:.3em}"
-         ".cb{display:flex;gap:.5em;align-items:center;font-weight:400}.cb input{width:auto;margin:0}"
-         ".ag{display:flex;justify-content:space-between;align-items:center;padding:.4em 0;"
-         "border-bottom:1px solid #ddd}.ag label{margin:0}"
+         ".cb{display:flex;gap:.5em;align-items:center;font-weight:400}"
+         ".cb input{width:1.5em;height:1.5em;margin:0;flex-shrink:0}"   // a thumb's target, not 13 px
+         ".ag{display:flex;justify-content:space-between;align-items:center;gap:.8em;padding:.4em 0;"
+         "border-bottom:1px solid #ddd}.ag label{margin:0;flex-shrink:0}"
          "h3{margin:1.6em 0 0}fieldset{border:1px solid #ccc;border-radius:4px;margin-top:1em}"
          "button{margin-top:1.5em;width:100%;padding:.8em;font-size:1.1em}"
          ".err{background:#fdd;padding:.6em;border-radius:4px}small{color:#666}"
@@ -106,7 +109,8 @@ static void sendForm(const SettingsInput& v, bool paired, const char* error) {
          "again</p><h3>WiFi</h3>";
     if (!cur.networks.empty()) {
         h += "<p><small>Saved networks: Chirp joins the strongest one in range. Tick "
-             "<b>Forget</b> to remove one.</small></p>";
+             "<b>Forget</b> to remove one. To change one's password, type its name under "
+             "<b>Add a network</b>.</small></p>";
         for (size_t i = 0; i < cur.networks.size(); i++) {
             const std::string& n = cur.networks[i].ssid;
             const bool forgetting = std::find(v.forgetNetworks.begin(), v.forgetNetworks.end(),
@@ -128,6 +132,7 @@ static void sendForm(const SettingsInput& v, bool paired, const char* error) {
               : "list=nets maxlength=32 autocapitalize=none autocorrect=off");
     h += "<datalist id=nets>";
     for (const std::string& s : nearby) {
+        if (findNetwork(cur.networks, s) >= 0) continue;   // saved already: listed above
         h += "<option value=\"";
         h += htmlEscape(s).c_str();
         h += "\">";
