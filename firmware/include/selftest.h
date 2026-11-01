@@ -6,3 +6,6 @@
 #pragma once
 
 const char* selfTestRun();
+// The result on the status strip (loop): the problem, or "Connected to
+// Venice/Hermes" for 3 s so the check visibly ends.
+void selfTestShow(const char* problem);

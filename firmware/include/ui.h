@@ -55,6 +55,7 @@ void uiSetTheme(uint8_t family, bool light);
 // next message takes it away again (the character repaints under it).
 void uiMsg(const char* msg, Ink ink);
 void uiNotice(const char* msg, Ink ink);
+void uiNoticeFor(const char* msg, Ink ink, uint32_t ms);   // a notice that clears itself after ms
 void uiShimmer(const char* label);
 void uiTick();                          // loop: advances a scrolling status text
 #ifdef BENCH_CMDS

@@ -605,7 +605,10 @@ static void tickerPaint(int offset) {
                 uiInk(msgInk), uiInk(Ink::Bg), statusLeft(), statusRight());
 }
 
+static uint32_t noticeUntilMs = 0;               // loop: uiNoticeFor's message clears then (0: none)
+
 static void showMsg(const char* msg, Ink ink, bool notice) {
+    noticeUntilMs = 0;                           // any newer message replaces a timed notice
     if (ink == Ink::Listen) characterMeterLabel(msg);   // the character view's countdown line
     uiFont(statusFont());
     String text = uiFold(String(msg));
@@ -638,6 +641,11 @@ static void showMsg(const char* msg, Ink ink, bool notice) {
 
 void uiMsg(const char* msg, Ink ink) { showMsg(msg, ink, false); }
 void uiNotice(const char* msg, Ink ink) { showMsg(msg, ink, true); }
+void uiNoticeFor(const char* msg, Ink ink, uint32_t ms) {
+    showMsg(msg, ink, true);
+    noticeUntilMs = millis() + ms;
+    if (!noticeUntilMs) noticeUntilMs = 1;
+}
 
 #ifdef BENCH_CMDS
 void uiPanelInvert(bool on) {
@@ -736,6 +744,8 @@ void uiPanelHold() {
 }
 
 void uiTick() {
+    if (noticeUntilMs && (int32_t)(millis() - noticeUntilMs) >= 0)
+        showMsg("", Ink::Ok, false);             // a timed notice ends (showMsg resets the timer)
     // A screen clear (view or theme switch, wake) took the strip with it: put
     // the last message back. The shimmer repaints itself on its next frame.
     if (!stripValid && sprReady && !shimmerLabel.length() && stripWanted()) {
@@ -779,6 +789,7 @@ void uiShimmer(const char* label) {
     shimmerLabel = label;
     msgShown = "";
     msgInk = Ink::Busy;
+    noticeUntilMs = 0;
     msgNotice = false;
     tickerOn = false;
     if (!stripWanted()) {

@@ -246,12 +246,15 @@ int hermesListSessions(std::vector<SessionItem>& out, int max) {
     return HTTP_CODE_OK;
 }
 
+// The boot check's probe: bounded at every step (connect 3 s, TLS handshake
+// 10 s, answer 3 s) so "Checking ..." never sits for minutes.
 int hermesProbe() {
     const bool venice = settingsStored().backend == "venice";
     const String url = venice ? settingsEndpoints().shimHealthUrl   // authed /models
                               : settingsEndpoints().sessionsUrl;
+    WiFiClientSecure tls;                          // outlives `http` (declared first)
     HTTPClient http;
-    if (venice ? !veniceHttpBegin(http, url) : !http.begin(url)) {
+    if (venice ? !veniceHttpBegin(http, tls, url, 10) : !http.begin(url)) {
         http.end();
         return HTTPC_ERROR_CONNECTION_REFUSED;
     }

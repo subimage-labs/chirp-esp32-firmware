@@ -514,8 +514,11 @@ model is down, say), the turn ends as "Backend not answering". The chat stays
 pinned to the newest turn; scrolling unpins it and the next question re-pins
 it.
 
-At boot the device checks its connections and names the first problem it
-finds on the bottom line (the conversations menu does the same):
+At boot (and after waking from sleep) the device checks its connections:
+the bottom line says *Checking Venice* or *Checking Hermes*, then
+*Connected to …* for a few seconds when everything answers, or names the
+first problem it finds (the conversations menu does the same). The check
+gives up after about 15 s at most:
 
 | Message | Fix |
 |---|---|

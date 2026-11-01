@@ -6,6 +6,7 @@
 #include "hermes.h"
 #include "selftest_policy.h"
 #include "settings.h"
+#include "ui.h"
 #include "venice_policy.h"
 
 static const uint16_t PROBE_TIMEOUT_MS = 3000;
@@ -29,4 +30,11 @@ const char* selfTestRun() {
             : selfTestProblem(wifi, hermes, wifi ? probe(settingsEndpoints().shimHealthUrl) : 0);
     Serial.printf("[SelfTest] %s\n", problem ? problem : "ok");
     return problem;
+}
+
+void selfTestShow(const char* problem) {
+    if (problem) uiMsg(problem, Ink::Err);
+    else uiNoticeFor(settingsStored().backend == "venice" ? "Connected to Venice"
+                                                          : "Connected to Hermes",
+                     Ink::Ok, 3000);
 }

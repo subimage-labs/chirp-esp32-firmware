@@ -332,7 +332,7 @@ void setup() {
         otaMarkHealthy();                          // this image boots and networks
         uiNotice(settingsStored().backend == "venice" ? "Checking Venice" : "Checking Hermes", Ink::Strong);
         const char* problem = selfTestRun();
-        uiMsg(problem ? problem : "", problem ? Ink::Err : Ink::Ok);
+        selfTestShow(problem);
         uiPanelHold();
         if (problem) speechErrorTone();
         if (!problem) otaBootCheck();               // restarts into a new image

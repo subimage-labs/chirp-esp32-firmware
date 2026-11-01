@@ -28,3 +28,11 @@ bool veniceHttpBegin(HTTPClient& http, const String& url) {
     if (url.startsWith("https://")) return http.begin(url, GTS_ROOT_R4_PEM);
     return http.begin(url);
 }
+
+bool veniceHttpBegin(HTTPClient& http, WiFiClientSecure& tls, const String& url,
+                     unsigned long handshakeS) {
+    if (!url.startsWith("https://")) return http.begin(url);
+    tls.setCACert(GTS_ROOT_R4_PEM);
+    tls.setHandshakeTimeout(handshakeS);
+    return http.begin(tls, url);
+}

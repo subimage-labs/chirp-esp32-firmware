@@ -338,7 +338,7 @@ void powerTick() {
         Serial.println("[Power] WiFi back");
         if (uiState == UI_IDLE && !menuOpen()) {     // the host may have changed meanwhile
             const char* problem = selfTestRun();
-            uiMsg(problem ? problem : "Ready", problem ? Ink::Err : Ink::Ok);
+            selfTestShow(problem);
             if (problem) speechErrorTone();
         }
     }
