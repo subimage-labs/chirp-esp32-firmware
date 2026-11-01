@@ -21,7 +21,8 @@
 <body>
 <h1>Flash Chirp</h1>
 <p>Install or update the Chirp voice terminal firmware on a
-T-Embed CC1101 Plus, straight from the browser.</p>
+T-Embed CC1101 Plus, straight from the browser. (A T-Deck is flashed with
+PlatformIO instead: see the project README.)</p>
 
 <h2>What you need</h2>
 <ul>
@@ -42,19 +43,23 @@ T-Embed CC1101 Plus, straight from the browser.</p>
       <strong>Next</strong>. Erasing wipes all device settings; a fresh
       device does not need it.</li>
   <li>Wait for <em>Installation complete</em>. Leave the cable in if you'll
-      pair over USB with <code>host/pair.py</code>.</li>
+      set up over USB with <code>host/pair.py</code> (Hermes) or
+      <code>host/provision.py</code>.</li>
 </ol>
 
 <esp-web-install-button manifest="./manifest.json"></esp-web-install-button>
 
 <h2>After the install</h2>
-<p>The device restarts into a setup screen. Finish setup from your Hermes
-machine with <code>host/pair.py</code>, or scan the code shown on the device
-screen with your phone.</p>
+<p>The device restarts into a setup screen: a WiFi network called
+<code>Chirp-XXXX</code> with its password and a QR code. Join it with your
+phone, open the page that appears, pick your WiFi and choose
+<strong>Venice</strong> (one API key, no computer) or
+<strong>Hermes on my network</strong>. For Hermes you can instead finish
+setup from your Hermes machine with <code>host/pair.py</code>.</p>
 
 <h2>Updating an installed device</h2>
 <p class="warning">Updating works the same way: click
-<strong>Install</strong> over the existing install. Your WiFi and Hermes
+<strong>Install</strong> over the existing install. Your WiFi, Venice and Hermes
 settings are kept — <strong>do not tick “Erase device”</strong>; that wipes
 them and you would need to set the device up again.</p>
 

@@ -7,7 +7,7 @@ the speech server are reachable, verifies the device's API path, then hands
 the device the agent — over USB when it is plugged in, else as a QR code the
 phone scans on the device's setup screen. A device holds up to 4 agents;
 each run adds one (or replaces its key) and makes it the one in use. Switch
-between them on the device: side key three times (Setup tab), wheel, dial key.
+between them on the device: side key five times (Setup tab), wheel, dial key.
 
 Never prints the API key, the WiFi password or the QR/URL fallback's URL (the
 URL carries the key: it goes to qrencode on stdin, or, without qrencode, into

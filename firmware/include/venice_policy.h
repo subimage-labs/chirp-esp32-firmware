@@ -96,6 +96,16 @@ inline const char* httpError(int code) {
     }
 }
 
+// The boot check's one line in venice mode (selftest.cpp): the network, then
+// the authed GET /models probe (`code` <= 0: no HTTP response). Never names
+// Hermes: a venice device has none to look for.
+inline const char* veniceSelfTestProblem(bool wifi, int code) {
+    if (!wifi) return "No WiFi";
+    if (code == 200) return nullptr;
+    if (const char* e = httpError(code)) return e;
+    return code <= 0 ? "Venice unreachable" : "Venice error";
+}
+
 // The voices the Setup tab offers (TTS_MODEL's), chosen by ear on the T-Deck's
 // speaker. Stored by id (NVS chirp/ttsVoice), so reordering never changes what
 // a device speaks with; an unknown id (a voice dropped here) is the first.

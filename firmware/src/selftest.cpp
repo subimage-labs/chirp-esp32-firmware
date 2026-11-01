@@ -6,6 +6,7 @@
 #include "hermes.h"
 #include "selftest_policy.h"
 #include "settings.h"
+#include "venice_policy.h"
 
 static const uint16_t PROBE_TIMEOUT_MS = 3000;
 
@@ -21,13 +22,11 @@ static int probe(const String& url) {
 
 const char* selfTestRun() {
     const bool wifi = WiFi.status() == WL_CONNECTED;
-    const int hermes = wifi ? hermesProbe() : 0;
-    // Venicle has one endpoint to check: the authed /models probe above
-    // stands in for the shim's /health.
-    const int shim = !wifi ? 0 : (settingsStored().backend == "venice"
-                                      ? hermes
-                                      : probe(settingsEndpoints().shimHealthUrl));
-    const char* problem = selfTestProblem(wifi, hermes, shim);
+    const int hermes = wifi ? hermesProbe() : 0;   // venice mode: the authed /models probe
+    const char* problem =
+        settingsStored().backend == "venice"
+            ? venice_policy::veniceSelfTestProblem(wifi, hermes)
+            : selfTestProblem(wifi, hermes, wifi ? probe(settingsEndpoints().shimHealthUrl) : 0);
     Serial.printf("[SelfTest] %s\n", problem ? problem : "ok");
     return problem;
 }

@@ -55,6 +55,9 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/venice_voice_test.cpp" -o "$out/venice_voice_test"
 "$out/venice_voice_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/venice_selftest_test.cpp" -o "$out/venice_selftest_test"
+"$out/venice_selftest_test"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/selftest_policy_test.cpp" -o "$out/selftest_policy_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/ota_policy_test.cpp" -o "$out/ota_policy_test"
