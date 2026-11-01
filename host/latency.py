@@ -104,7 +104,8 @@ def med(values):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--port", default="/dev/ttyACM0")
+    ap.add_argument("--port", help="serial port; stops when absent "
+                    "(default: the first /dev/ttyACM*)")
     ap.add_argument("--runs", type=int, default=1, help="passes over the question list")
     ap.add_argument("--new-chat", action="store_true")
     ap.add_argument("--label", default="run")
@@ -115,7 +116,11 @@ def main():
 
     if not os.path.exists(provision.LOG):
         raise SystemExit(f"{provision.LOG} missing: start host/serial-watch.py first")
-    dev = Device(provision.pick_port(args.port) or args.port)
+    port = provision.pick_port(args.port)
+    if not port:
+        raise SystemExit(f"no device on {args.port}" if args.port is not None
+                         else "no /dev/ttyACM* port")
+    dev = Device(port)
     dev.send("vol 0")
     if args.new_chat:
         dev.send("side down", 0.2)

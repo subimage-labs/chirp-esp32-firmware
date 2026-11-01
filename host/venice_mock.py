@@ -78,13 +78,21 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, code, obj):
         self._send(code, "application/json", json.dumps(obj).encode())
 
+    def _auth_summary(self, auth):
+        """Scheme and length only; no part of the header value is ever logged."""
+        if not auth:
+            return "none"
+        if auth.startswith("Bearer "):
+            return f"Bearer <{len(auth) - 7} chars>"
+        return f"<non-Bearer header, {len(auth)} chars>"
+
     def _authed(self):
         auth = self.headers.get("Authorization", "")
         if auth.startswith("Bearer ") and len(auth) > len("Bearer xx"):
             if VERBOSE:
-                log(f"{self.path} auth key len {len(auth) - 7}")
+                log(f"{self.path} auth {self._auth_summary(auth)}")
             return True
-        log(f"{self.path} REJECTED: Authorization '{auth[:12]}...'")
+        log(f"{self.path} REJECTED: Authorization {self._auth_summary(auth)}")
         self._json(401, {"error": {"message": "Missing or bad API key",
                                    "type": "invalid_request_error"}})
         return False

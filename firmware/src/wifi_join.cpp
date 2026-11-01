@@ -113,6 +113,7 @@ void wifiJoinTick(bool mayRetry) {
             joinPending = false;
             attempt++;
         }
-        scanStart();
+        if (settingsStored().networks.size() == 1) join({});   // nothing to choose: no scan
+        else scanStart();
     }
 }

@@ -30,3 +30,7 @@
 #ifndef CHIRP_COMPOSE
 #define CHIRP_COMPOSE 0
 #endif
+
+#if CHIRP_HAS_KEYBOARD && !CHIRP_COMPOSE
+#error "CHIRP_HAS_KEYBOARD needs CHIRP_COMPOSE: the keyboard types into the compose line"
+#endif

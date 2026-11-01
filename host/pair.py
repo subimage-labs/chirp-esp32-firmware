@@ -33,7 +33,8 @@ key travels over plain HTTP on the LAN; the last line of a run says so.
 --host ADDR        Address the device contacts this machine on (default: the
                    address of the default route, confirmed interactively).
 --port PATH        USB serial port for the wired handoff (default: first
-                   /dev/ttyACM*).
+                   /dev/ttyACM*). A named port is never replaced by another:
+                   when it is absent there is no wired handoff.
 --no-usb           Skip the wired handoff; always print the pairing QR.
 --look [SPEC]      Give the agent a character look derived from its persona
                    (SOUL.md, read here, never printed or sent: only trait
@@ -485,7 +486,7 @@ def handoff_usb(args, host, profile, api_key, look=None):
             password = getpass.getpass("WiFi password (blank for an open network): ")
         settings.update(ssid=ssid, **{"pass": password})
     try:
-        reply = provision.send_settings(settings, args.port)
+        reply = provision.send_settings(settings, port)
     except (ValueError, RuntimeError) as exc:
         stop(str(exc))
     print(reply)
@@ -508,7 +509,8 @@ def forget_agent(args):
     name = "" if args.forget == "default" else args.forget
     port = provision.pick_port(args.port)
     if not port:
-        stop("--forget needs the device on USB (or remove it on the phone setup form)")
+        stop(f"--forget needs the device on {args.port}" if args.port is not None
+             else "--forget needs the device on USB (or remove it on the phone setup form)")
     try:
         reply = provision.send_settings({"forget": name}, port)
     except RuntimeError as exc:
@@ -675,7 +677,8 @@ def main():
         handoff_usb(args, host, profile, api_key, look)
     else:
         if not args.no_usb:
-            print("handoff: no /dev/ttyACM* device found")
+            print(f"handoff: no device on {args.port}" if args.port is not None
+                  else "handoff: no /dev/ttyACM* device found")
         handoff_qr(host, profile, api_key, look)
     lan_note()
 

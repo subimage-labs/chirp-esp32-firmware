@@ -234,11 +234,14 @@ static bool sttTranscribe(String& text) {
 
     uint8_t* body = (uint8_t*)heap_caps_malloc(total, MALLOC_CAP_SPIRAM);
     if (!body) return false;
+    struct Free {                                  // the body goes on every return path
+        uint8_t* p;
+        ~Free() { heap_caps_free(p); }
+    } bodyGuard{body};
     memcpy(body, head.c_str(), head.length());
     memcpy(body + head.length(), wavBuf, wavLen);
     memcpy(body + head.length() + wavLen, tail.c_str(), tail.length());
 
-    if (venice && !veniceClock(8000)) return false;
     HTTPClient http;
     if (venice ? !veniceHttpBegin(http, settingsEndpoints().sttUrl)
                : !http.begin(settingsEndpoints().sttUrl)) {
@@ -249,7 +252,6 @@ static bool sttTranscribe(String& text) {
     http.addHeader("Content-Type", "multipart/form-data; boundary=" + String(B));
     if (venice) http.addHeader("Authorization", settingsEndpoints().auth);
     const int code = http.POST(body, total);
-    heap_caps_free(body);
     if (code != HTTP_CODE_OK) {
         Serial.printf("[STT] HTTP %d: %s\n", code,
                       code > 0 ? http.getString().c_str() : "(conn)");

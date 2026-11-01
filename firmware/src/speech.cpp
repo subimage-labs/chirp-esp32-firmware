@@ -171,7 +171,8 @@ int speechVoice() {
 }
 
 void speechSetVoice(int i) {
-    const char* id = venice_policy::VOICES[i % venice_policy::VOICE_COUNT].id;
+    const int n = venice_policy::VOICE_COUNT;
+    const char* id = venice_policy::VOICES[((i % n) + n) % n].id;
     voiceStore(id);
     Preferences prefs;
     if (prefs.begin(VOICE_NVS_NAMESPACE, false)) {
@@ -284,6 +285,11 @@ void speechStop() {
     silence();
 }
 
+bool speechFetchIdle() {
+    std::lock_guard<std::mutex> g(qMutex);
+    return !fetchTaskRunning;
+}
+
 static bool playChunk(int idx) {
     const int slot = speechSlot(idx);
     if (!staged[slot]) return false;
@@ -374,7 +380,6 @@ static void ttsFetchPSRAM(const std::string& text, uint8_t*& out, size_t& outSiz
 #endif
     String body;
     serializeJson(req, body);
-    if (venice && !veniceClock(8000)) return;
     HTTPClient http;
     if (venice ? !veniceHttpBegin(http, settingsEndpoints().ttsUrl)
                : !http.begin(settingsEndpoints().ttsUrl)) {

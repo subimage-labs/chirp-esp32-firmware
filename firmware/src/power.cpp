@@ -9,6 +9,7 @@
 #include "capture.h"
 #include "config.h"
 #include "input.h"
+#include "keyboard.h"
 #include "menu.h"
 #include "battery.h"
 #include "power_policy.h"
@@ -176,6 +177,9 @@ static void enterLightSleep() {
     Serial.println("[Power] woke from light sleep");
     gpio_hold_dis((gpio_num_t)BOARD_PWR_EN_PIN);
     digitalWrite(BOARD_PWR_EN_PIN, HIGH);
+#if CHIRP_HAS_KEYBOARD
+    keyboardReinit();                               // the rail cut the C3: back to character mode
+#endif
     uiPanelOn();
     backlightNow = Backlight::Full;
     inputSwallowKeys();                             // the waking press only wakes
@@ -308,6 +312,9 @@ void powerTick() {
     policy.setSource(readSource(false), now);
     if (panelResync) {
         panelResync = false;
+#if CHIRP_HAS_KEYBOARD
+        keyboardReinit();                         // the dip may have reset the C3 too
+#endif
         if (backlightNow != Backlight::Off) {     // off: the next wake sets it up anyway
             uiPanelOn();
             uiBacklight(backlightDuty(backlightNow));

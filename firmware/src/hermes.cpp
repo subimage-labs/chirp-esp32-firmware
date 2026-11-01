@@ -98,7 +98,6 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
             delay(HERMES_RETRY_MS);
         }
         if (venice) {
-            if (!veniceClock(8000)) return AskEnd::NoClock;
             veniceHttpBegin(http, settingsEndpoints().chatUrl);
         } else {
             http.begin(settingsEndpoints().chatUrl);

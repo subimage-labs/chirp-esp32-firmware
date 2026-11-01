@@ -157,7 +157,6 @@ static void turnTask(void*) {
         if (end == AskEnd::NoCredit) { endTurn(WS_FAIL, "Out of credit"); continue; }
         if (end == AskEnd::NotAllowed) { endTurn(WS_FAIL, "Key not allowed"); continue; }
         if (end == AskEnd::RateLimited) { endTurn(WS_FAIL, "Rate limited"); continue; }
-        if (end == AskEnd::NoClock) { endTurn(WS_FAIL, "Clock not set"); continue; }
         if (end != AskEnd::Answered || speechChunks() == 0) {
             endTurn(WS_FAIL, "Backend unreachable");
             continue;
@@ -178,6 +177,12 @@ void turnTaskStart() {
 
 // ---------------------------------------------------------------- loop
 static void startWorker() {
+    if (!turnTaskHandle) {            // the worker never started (turnTaskStart)
+        captureStreamClose();
+        uiMsg("Task start failed", Ink::Err);
+        uiState = UI_IDLE;
+        return;
+    }
     speechChirp();                    // instant audible ack: the wait feels shorter
     turnReader.pin();                 // no text from the previous turn leaks in
     readLat = LatStat();
@@ -215,7 +220,12 @@ void turnAskText(const String& q) {
 }
 
 bool turnPreviewVoice(const char* text) {
-    if (uiState != UI_IDLE || !speechPreview(text)) return false;
+    if (uiState != UI_IDLE || !speechFetchIdle()) return false;
+    if (!turnTaskHandle) {
+        uiMsg("Task start failed", Ink::Err);
+        return false;
+    }
+    if (!speechPreview(text)) return false;
     previewJob.store(true);           // read by the worker after the notify
     xTaskNotifyGive(turnTaskHandle);
     return true;

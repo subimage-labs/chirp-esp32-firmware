@@ -59,6 +59,7 @@ void speechPump();               // decoder step while something plays
 void speechChirp();              // instant ack at capture release
 void speechErrorTone();          // a turn or the self-test failed (plays while idle)
 void speechStop();               // stop playback; fetch stops between chunks
+bool speechFetchIdle();          // no TTS chunk fetch task is running (any context)
 
 enum class SpeakStep : uint8_t { Busy, Done };
 SpeakStep speechTick();          // play chunks in order; Done once production

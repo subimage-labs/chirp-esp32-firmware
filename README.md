@@ -43,8 +43,7 @@ For **Venice**: a Venice account with API credit, and an API key made on its
 [API settings page](https://docs.venice.ai/guides/getting-started/generating-api-key)
 (`venice.ai/settings/api`). Make one just for this device so you can revoke
 it alone. The device sends your voice and text to Venice over HTTPS and
-needs working internet, including the time servers (`time.google.com`,
-`pool.ntp.org`), to check Venice's certificate.
+needs working internet.
 
 For **Hermes**: a Linux machine on the same network with
 
@@ -234,7 +233,6 @@ browser-installer images and unsigned builds update over USB.
 | Venice: *Out of credit* | Add credit on your Venice account. |
 | Venice: *Key not allowed* | The key has an IP allow-list that excludes your network; change it in Venice's API settings. |
 | Venice: *Rate limited* | Wait a moment and ask again. |
-| Venice: *Clock not set* | The device could not reach a time server (`time.google.com`, `pool.ntp.org`) and cannot check Venice's certificate. Check that the network gives internet access and allows NTP. |
 | Venice: *Backend unreachable / not answering* | No internet, or Venice is down. |
 | Hermes: unreachable, speech server unreachable, key rejected, profile not found | See the boot-check table under [Using it](#using-it); `python3 host/pair.py` re-checks everything. A changed address for the Hermes machine needs a re-pair. |
 | Want a clean start | A full erase (browser installer: tick *Erase device*; `pio run -d firmware -e <board> -t erase`) wipes every setting and returns the device to its setup screen. |
@@ -531,7 +529,7 @@ finds on the bottom line (the conversations menu does the same):
 | Venice error | Venice answered with an unexpected error: try again later |
 
 A turn that fails afterwards says why on the bottom line: *Bad API key*,
-*Out of credit*, *Key not allowed*, *Rate limited* or *Clock not set* (Venice
+*Out of credit*, *Key not allowed* or *Rate limited* (Venice
 only; see [Troubleshooting](#6-troubleshooting)), *Backend not answering*
 (nothing arrived for 90 s) or *Backend unreachable*.
 

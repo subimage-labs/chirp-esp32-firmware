@@ -48,7 +48,7 @@
 // · capture (mic, recording buffer, STT upload) · voice (hands-free +
 // ambient floor) · speech (playback, TTS chunk pipeline; the decoder plays
 // MP3 straight from memory, mem_source.h) · hermes (chat API,
-// session) · venice (backend TLS transport: root, clock) · turn (turn worker, THINKING/SPEAKING) · menu (Chats, Theme, Text and
+// session) · venice (backend TLS transport: the pinned root) · turn (turn worker, THINKING/SPEAKING) · menu (Chats, Theme, Text and
 // Setup tabs) · power (backlight timeline, sleep, battery level via the
 // charger ADC, slow-animation flag) · bench (serial test commands,
 // BENCH_CMDS builds only) · main (setup, loop, input dispatch,

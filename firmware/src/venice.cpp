@@ -1,16 +1,13 @@
 // venice.cpp — TLS transport for the venice backend. api.venice.ai serves a
 // Google Trust Services chain (leaf <- WE1 <- GTS Root R4), so the firmware
 // pins the self-signed R4 root (valid to 2036-06-22; pki.goog/repo/certs/
-// gtsr4.pem). mbedTLS also refuses certificates whose validity window it
-// cannot place in time, so an https backend needs SNTP before its first
-// request; a bench-local http:// backend needs neither root nor clock.
+// gtsr4.pem). The chain and the hostname are verified against that root.
+// Certificate dates are not checked in this build (the framework's mbedTLS
+// has CONFIG_MBEDTLS_HAVE_TIME_DATE off), so TLS needs no wall clock.
+// A bench-local http:// backend needs no root.
 #include "venice.h"
 
-#include <time.h>
-
 #include <WiFi.h>
-
-#include "settings.h"
 
 static const char GTS_ROOT_R4_PEM[] PROGMEM = R"PEM(-----BEGIN CERTIFICATE-----
 MIICCTCCAY6gAwIBAgINAgPlwGjvYxqccpBQUjAKBggqhkjOPQQDAzBHMQswCQYD
@@ -26,30 +23,6 @@ BBSATNbrdP9JNqPV2Py1PsVq8JQdjDAKBggqhkjOPQQDAwNpADBmAjEA6ED/g94D
 p/SgguMh1YQdc4acLa/KNJvxn7kjNuK8YAOdgLOaVsjh4rsUecrNIdSUtUlD
 -----END CERTIFICATE-----
 )PEM";
-
-static bool clockStarted = false;
-
-void veniceClockStart() {
-    if (clockStarted) return;
-    clockStarted = true;
-    configTime(0, 0, "time.google.com", "pool.ntp.org");
-    Serial.println("[Venice] clock sync started");
-}
-
-bool veniceClock(int waitMs) {
-    if (!settingsEndpoints().chatUrl.startsWith("https://")) return true;  // bench
-    if (time(nullptr) > 1700000000) return true;
-    veniceClockStart();
-    const uint32_t deadline = millis() + waitMs;
-    while (time(nullptr) <= 1700000000) {
-        if (millis() >= deadline) {
-            Serial.println("[Venice] no clock: certificate checks would fail");
-            return false;
-        }
-        delay(100);
-    }
-    return true;
-}
 
 bool veniceHttpBegin(HTTPClient& http, const String& url) {
     if (url.startsWith("https://")) return http.begin(url, GTS_ROOT_R4_PEM);

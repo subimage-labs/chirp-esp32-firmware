@@ -3,18 +3,28 @@
 
 Reads the gitignored firmware/device.env (template: firmware/device.env.example)
 and sends one `settings {json}` line (firmware/include/console.h). The device
-checks it with the setup form's rules, stores it in NVS and restarts. The
-file's ssid + pass add a WiFi network (the device keeps up to 5 and joins the
-strongest in range; a name it already holds is edited, the oldest is dropped
-past 5). The file's profile + key become one of the device's agents (up to 4)
-and the one in use; agents added earlier stay. backend="venice" switches the device to
-the Venice backend instead: veniceKey is required then, and the Hermes
-members are ignored (they stay stored for a switch back).
+checks it with the setup form's rules, stores it in NVS and restarts. Only the
+keys the file mentions are sent; a key left out keeps the device's stored
+value, while a key set to an empty value ("") clears that member on the device
+(`pass=""` is an open network).
+
+The file's ssid + pass add a WiFi network (the device keeps up to 5 and joins
+the strongest in range; a name it already holds is edited, the oldest is
+dropped past 5). The file's profile + key become one of the device's agents
+(up to 4) and the one in use; agents added earlier stay. Local mode (backend
+absent or "local") requires hermes and key, not ssid: the device keeps its
+networks and rejects local mode when it holds none. backend="venice" switches
+the device to the Venice backend instead: veniceKey is the only member
+required then, and the Hermes members are ignored (they stay stored for a
+switch back). Template placeholders ("your-...") are rejected.
 
 Values are never printed: agents run this, and their output lands in
 transcripts. Works alongside serial-watch.py (the reply is read from its log).
 
     host/provision.py [--port /dev/ttyACM1] [--env firmware/device.env]
+
+--port names one device and is never replaced: when that path is absent the
+tool stops. Without --port it uses the first /dev/ttyACM*.
 
 host/pair.py imports send_settings() for the wired handoff and --forget.
 """
@@ -36,6 +46,8 @@ REPLY_S = 25.0          # a booting device reads serial only after its WiFi wait
 
 
 def read_env(path):
+    """The members device.env mentions, as {key: value}. An empty value is kept
+    as "" (it clears that member on the device); an absent key is absent."""
     vals = {}
     with open(path) as f:
         for n, raw in enumerate(f, 1):
@@ -50,28 +62,29 @@ def read_env(path):
                 v = v[1:-1]
             vals[k] = v
     required = (("veniceKey",) if vals.get("backend") == "venice"
-                else ("ssid", "hermes", "key"))
+                else ("hermes", "key"))
     for k in required:
         if not vals.get(k):
             sys.exit(f"{path}: {k} is required")
     for k, v in vals.items():
         if v.startswith("your-"):
             sys.exit(f"{path}: {k} still has the template placeholder")
-    out = {k: vals.get(k, "") for k in FIELDS}
-    if not out["backend"]:
-        out["backend"] = "local"      # a local env is an explicit local choice
-    return out
+    return vals
+
+
+def settings_members(settings):
+    """The members to send: every given key, "" included (an explicit empty
+    value clears that member on the device), None omitted."""
+    return {k: v for k, v in settings.items() if v is not None}
 
 
 def pick_port(preferred=None):
-    """`preferred` when present. A /dev/serial/by-id path names one device:
-    absent means None, never another device's port (with two boards plugged in
-    that would send settings or bench lines to the wrong one). Otherwise the
-    first ttyACM (a bare name drifts on a reset, ACM1 -> ACM0)."""
-    if preferred and os.path.exists(preferred):
-        return preferred
-    if preferred and "/by-id/" in preferred:
-        return None
+    """`preferred` when it exists, else None: an explicitly named port is one
+    device, and an absent one must never become another device's port (with
+    two boards plugged in that would send settings or bench lines to the wrong
+    one). Only preferred=None picks the first ttyACM."""
+    if preferred is not None:
+        return preferred if os.path.exists(preferred) else None
     ports = sorted(glob.glob("/dev/ttyACM*"))
     return ports[0] if ports else None
 
@@ -92,20 +105,21 @@ def send_settings(settings, port=None):
     """Send one `settings {json}` line to the device; return its reply line.
 
     `settings` holds only the members to change (console.h): absent ones keep
-    the device's stored values. Opens the port raw (no echo), and reads the
-    reply from serial-watch.py's log when the watcher runs, else from the port
-    itself. Raises RuntimeError when no reply arrives within REPLY_S. Values
-    are never printed; only the chosen port and the reply are.
+    the device's stored values, an explicit "" clears that member. Opens the
+    port raw (no echo), and reads the reply from serial-watch.py's log when
+    the watcher runs, else from the port itself. Raises RuntimeError when the
+    port is absent (an explicit `port` is never replaced by another device's)
+    or when no reply arrives within REPLY_S. Values are never printed; only
+    the chosen port and the reply are.
     """
-    # Empty members are omitted, not sent: an absent member keeps the stored
-    # value on the device, while an explicit "" clears it (ssid, hosts, keys).
-    # `pass` is the exception — its empty string means an open network.
-    members = {k: v for k, v in settings.items() if v != "" or k == "pass"}
-    line = ("settings " + json.dumps(members, separators=(",", ":")) + "\n").encode()
+    line = ("settings " + json.dumps(settings_members(settings),
+                                     separators=(",", ":")) + "\n").encode()
 
-    port = pick_port(port)
-    if not port:
-        raise RuntimeError("no /dev/ttyACM* port")
+    chosen = pick_port(port)
+    if not chosen:
+        raise RuntimeError(f"no device on {port}" if port is not None
+                           else "no /dev/ttyACM* port")
+    port = chosen
     from_log = watcher_running() and os.path.exists(LOG)
     log_pos = os.path.getsize(LOG) if from_log else 0
 
@@ -145,8 +159,10 @@ def send_settings(settings, port=None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--port", default="/dev/ttyACM1")
-    ap.add_argument("--env", default=os.path.join(REPO, "firmware", "device.env"))
+    ap.add_argument("--port", help="serial port; stops when absent "
+                    "(default: the first /dev/ttyACM*)")
+    ap.add_argument("--env", default=os.path.join(REPO, "firmware", "device.env"),
+                    help="settings file (default: firmware/device.env)")
     args = ap.parse_args()
 
     if not os.path.exists(args.env):
