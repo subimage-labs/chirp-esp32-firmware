@@ -31,6 +31,10 @@ static uint8_t volume = DEFAULT_VOLUME;           // loop
 static bool playing = false;                      // loop (eof callback runs in audio.loop)
 static bool chirping = false;                     // loop: what plays is the chirp
 static uint8_t* previewBuf = nullptr;            // loop: a voice preview the decoder reads
+// loop: the ticket of the preview that may still play (0: none). Anything that
+// silences playback (a stop, the chirp of a turn, a tone, an answer) voids it,
+// so a fetch that lands late is freed, never played over a turn.
+static uint32_t previewWanted = 0;
 
 // The venice voice (venice_policy.h VOICES), saved by id in NVS chirp/ttsVoice.
 // The loop sets it (speechSetVoice); the fetch and preview tasks copy it per
@@ -248,7 +252,7 @@ static bool openMemory(const uint8_t* data, size_t size) {
 }
 
 // Whatever plays is over: close the decoder's file, free a held chunk or a
-// preview.
+// preview, and void a preview still being fetched.
 static void silence() {
     if (playing) {
         audio.stopSong();
@@ -259,6 +263,7 @@ static void silence() {
         heap_caps_free(previewBuf);
         previewBuf = nullptr;
     }
+    previewWanted = 0;
 }
 
 void speechChirp() {
@@ -410,40 +415,50 @@ static void ttsFetchPSRAM(const std::string& text, uint8_t*& out, size_t& outSiz
 
 // ---------------------------------------------------------------- voice preview
 // One short line in the current voice, outside any turn (the Setup tab's
-// voice row): a one-shot task (app.h: preview) fetches it, the loop plays it
-// from memory like the chirp and frees it once the decoder is done with it.
-static std::string previewText;                       // loop writes before the task starts
-static std::atomic<uint8_t*> previewReady{nullptr};   // task -> loop: the fetched MP3
+// voice row). The turn worker fetches it (turnPreviewVoice, speechPreviewFetch):
+// no task of its own, so it never costs a second stack, and it never runs
+// beside a turn's downloads (a dedicated 16 KB task took the internal heap to
+// 81 KB, under the 98 KB floor). The loop plays it from memory like the chirp
+// and frees it once the decoder is done with it.
+static std::string previewText;                       // loop writes before the worker's wake
+static uint32_t previewAsked = 0;                     // likewise: the ticket of that request
+static std::atomic<uint8_t*> previewReady{nullptr};   // worker -> loop: the fetched MP3
 static size_t previewReadySize = 0;                   // written before previewReady (release)
-static std::atomic<bool> previewFetching{false};
+static uint32_t previewReadyTicket = 0;               // likewise: the request it answers
+static uint32_t previewSeq = 0;                       // loop: last ticket issued
+static std::atomic<bool> previewFetching{false};      // asked until the worker is done
 
-static void previewTask(void*) {
+bool speechPreview(const char* text) {
+    if (previewFetching.load(std::memory_order_acquire)) return false;   // one at a time
+    previewText = text;
+    if (++previewSeq == 0) ++previewSeq;                                 // 0 means none
+    previewWanted = previewAsked = previewSeq;
+    previewFetching.store(true, std::memory_order_release);
+    return true;
+}
+
+void speechPreviewFetch() {
     uint8_t* buf = nullptr;
     size_t n = 0;
     ttsFetchPSRAM(previewText, buf, n);
     if (buf) {
         previewReadySize = n;
+        previewReadyTicket = previewAsked;
         previewReady.store(buf, std::memory_order_release);
     } else {
         Serial.println("[Speak] preview fetch failed");
     }
     previewFetching.store(false, std::memory_order_release);
-    vTaskDelete(nullptr);
 }
 
-bool speechPreview(const char* text) {
-    if (previewFetching.load(std::memory_order_acquire)) return false;   // one at a time
-    previewText = text;
-    previewFetching.store(true, std::memory_order_release);
-    if (xTaskCreatePinnedToCore(previewTask, "preview", 16384, nullptr, 1, nullptr, 0) != pdPASS) {
-        previewFetching.store(false);
-        return false;
-    }
-    return true;
-}
-
-void speechPreviewTick() {
+void speechPreviewTick(bool mayPlay) {
     if (uint8_t* ready = previewReady.exchange(nullptr, std::memory_order_acquire)) {
+        if (!mayPlay || previewReadyTicket != previewWanted) {   // voided, or not idle
+            heap_caps_free(ready);
+            previewWanted = 0;
+            Serial.println("[Speak] preview dropped (late)");
+            return;
+        }
         silence();                                    // a previous preview (or a tone) ends here
         previewBuf = ready;
         playing = openMemory(previewBuf, previewReadySize);

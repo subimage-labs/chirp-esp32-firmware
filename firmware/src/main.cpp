@@ -411,7 +411,7 @@ void loop() {
     while (inputPoll(ev)) dispatch(ev);
     volModeTick();
     menuTick();
-    speechPreviewTick();                           // a voice preview (Setup tab), menu open or not
+    speechPreviewTick(uiState == UI_IDLE);         // a voice preview (Setup tab); late ones are dropped
     uiTick();                                      // scrolls a status text that doesn't fit
 
     if (uiState == UI_RECORDING) recordingTick();

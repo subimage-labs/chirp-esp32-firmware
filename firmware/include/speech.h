@@ -39,11 +39,14 @@ void speechSetVolume(uint8_t v);
 // Venice: the voice, an index into venice_policy.h VOICES, saved on the device.
 int speechVoice();
 void speechSetVoice(int i);
-// Say `text` in the current voice now, outside any turn (the Setup tab's voice
-// row; caller: idle). A one-shot task (app.h: preview) fetches it; the loop
-// plays it through speechPreviewTick, every pass. False: one is fetching.
+// A short line in the current voice, outside any turn (the Setup tab's voice
+// row, through turnPreviewVoice). speechPreview (loop, idle) asks for it; the
+// turn worker fetches it (speechPreviewFetch, below); the loop plays it through
+// speechPreviewTick, every pass, only while `mayPlay` (idle). Anything that
+// silences playback first (a stop, a turn's chirp, a tone) voids it: a late
+// result is freed, never played. False: one is still being fetched.
 bool speechPreview(const char* text);
-void speechPreviewTick();
+void speechPreviewTick(bool mayPlay);
 #ifdef BENCH_CMDS
 void speechBenchVoice(const char* model, const char* voice);   // venice TTS audition ("" = built-in)
 #endif
@@ -64,6 +67,7 @@ SpeakStep speechTick();          // play chunks in order; Done once production
 // Turn worker.
 bool speechStart();              // reap the previous fetch task, clear the queue;
                                  // false: that task is still downloading
+void speechPreviewFetch();       // the asked preview line (a worker job between turns)
 void speechFeed(const char* delta);
 void speechFinish();             // flush the unterminated tail
 int speechChunks();

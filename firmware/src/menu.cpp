@@ -18,6 +18,7 @@
 #include "logo_draw.h"
 #include "setup_view.h"
 #include "speech.h"
+#include "turn.h"
 #include "venice_policy.h"
 #include "ui.h"
 
@@ -541,7 +542,7 @@ static void activateSetup() {
     switch (l.kind(setupSel)) {
     case setupview::Kind::Voice:                    // saved; Chirp says hello in the new voice
         speechSetVoice(venice_policy::voiceNext(speechVoice()));
-        if (uiState == UI_IDLE) speechPreview(venice_policy::VOICE_PREVIEW);
+        turnPreviewVoice(venice_policy::VOICE_PREVIEW);   // idle only (turn.h)
         menuRender();
         return;
     case setupview::Kind::Screen:                   // live, saved; the chat shows it on exit

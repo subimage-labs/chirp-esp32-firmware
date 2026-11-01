@@ -27,6 +27,7 @@ static String injectedQ;                          // set before the notify: a ty
 #ifdef BENCH_CMDS
 static String injectedA;                          // bench: a canned answer instead of Hermes
 #endif
+static std::atomic<bool> previewJob{false};       // set before the notify: a voice preview, not a turn
 
 static std::atomic<uint32_t> latT0{0};             // worker writes, any context reads
 // Stop request: the loop clears it before waking the worker and sets it from
@@ -110,7 +111,12 @@ static AskEnd cannedAnswer(const String& a) {
 
 static void turnTask(void*) {
     for (;;) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        ulTaskNotifyTake(pdFALSE, portMAX_DELAY);  // one wake per request: a preview asked
+                                                   // just before a turn runs first, then the turn
+        if (previewJob.exchange(false)) {          // the Setup tab's voice preview: one download
+            speechPreviewFetch();
+            continue;
+        }
         const uint32_t t0 = millis();
         pubLat = LatStat();
         workerQ = "";
@@ -206,6 +212,13 @@ void turnBegin(bool keepMic) {
 void turnAskText(const String& q) {
     injectedQ = q;                    // read by the worker after the notify
     startWorker();
+}
+
+bool turnPreviewVoice(const char* text) {
+    if (uiState != UI_IDLE || !speechPreview(text)) return false;
+    previewJob.store(true);           // read by the worker after the notify
+    xTaskNotifyGive(turnTaskHandle);
+    return true;
 }
 
 #ifdef BENCH_CMDS

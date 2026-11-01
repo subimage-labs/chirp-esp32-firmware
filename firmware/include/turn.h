@@ -25,6 +25,10 @@ bool turnTranscribing();        // loop: THINKING and the worker is still in STT
 // reads these lines.
 void turnLatMark(const char* event);
 void turnAskText(const String& q);   // a typed turn: the question is q, STT skipped
+// The Setup tab's voice preview: the worker downloads `text` in the current
+// voice between turns (speech.h). Loop, idle only; false: not idle or one is
+// still being fetched.
+bool turnPreviewVoice(const char* text);
 #ifdef BENCH_CMDS
 void turnSpeakText(const String& a); // bench: a turn whose answer is a, Hermes skipped
 #endif
