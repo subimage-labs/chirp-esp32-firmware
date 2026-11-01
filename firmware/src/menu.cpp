@@ -316,7 +316,7 @@ static String infoValue(int i) {
     case 1: return online ? WiFi.SSID() + "  (" + String(WiFi.RSSI()) + " dBm)"
                           : String((unsigned)s.networks.size()) + " saved  (not connected)";
     case 2: return online ? WiFi.localIP().toString() : String("-");
-    case 3: return s.hermes.c_str();
+    case 3: return s.backend == "venice" ? e.shimHost + ":" + String(e.shimPort) : String(s.hermes.c_str());
     case 4: return e.shimHost + ":" + String(e.shimPort);
     default: {
         char text[40];
@@ -330,10 +330,15 @@ static const char* const INFO_LABELS[] = {"Firmware", "WiFi",   "Address",
 static_assert(sizeof(INFO_LABELS) / sizeof(INFO_LABELS[0]) == setupview::INFO_ROWS,
               "one label per info row");
 
+// The backend row names what answers: Hermes, or Venice in venice mode.
+static const char* infoLabel(int i) {
+    return i == 3 && settingsStored().backend == "venice" ? "Venice" : INFO_LABELS[i];
+}
+
 // Where the info values start: right of the widest label (it grows with the font).
 static int infoColumn() {
     int w = 0;
-    for (const char* l : INFO_LABELS) w = max(w, uiTextWidth(l));
+    for (int i = 0; i < setupview::INFO_ROWS; i++) w = max(w, uiTextWidth(infoLabel(i)));
     return 6 + w + 12;
 }
 
@@ -413,7 +418,7 @@ static void renderSetup(TFT_eSPI& tft, int top, int bottom) {
             const int vx = infoColumn();
             const Ink bg = sel ? Ink::Surface : Ink::Bg;
             if (sel) tft.fillRect(0, y - 2, tft.width(), uiRowHeight(), uiInk(Ink::Surface));
-            uiText(INFO_LABELS[i], 6, y, Ink::Muted, bg);
+            uiText(infoLabel(i), 6, y, Ink::Muted, bg);
             uiText(uiFit(infoValue(i), tft.width() - vx - 6), vx, y, Ink::Strong, bg);
             break;
         }

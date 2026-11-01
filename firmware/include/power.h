@@ -24,6 +24,7 @@ bool powerBoot();      // first thing in setup: release sleep holds, rail on;
                        // true when a key woke the chip from deep sleep
 void powerBegin();     // charger I2C
 void powerTick();      // every loop, before input dispatch
+void powerKeyTyped();  // loop: a keyboard key (typing counts as activity, wakes the screen)
 const char* powerSourceName();   // bench status
 Backlight powerBacklight();      // the level the backlight is at now (character mode animates by it)
 bool powerAnimSlow();            // battery, idle long enough: animations run at a trickle

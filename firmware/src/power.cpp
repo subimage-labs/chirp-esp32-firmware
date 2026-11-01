@@ -24,17 +24,30 @@ static PowerPolicy policy(ANIM_SLOW_MS, SCREEN_DIM_MS, SCREEN_OFF_MS, LIGHT_SLEE
 static PowerSource source = PowerSource::Unknown;
 static Backlight backlightNow = Backlight::Full;
 static bool wifiRejoining = false;                // after a light-sleep wake
+// A plug or unplug can dip the rail: the display chip comes back reset (asleep,
+// factory settings) and the backlight chip off, while this side counts the
+// screen lit (T-Deck, seen twice: backlight on, no picture). readSource raises
+// it; powerTick sets the panel up again.
+static bool panelResync = false;                  // loop
+static bool keyTyped = false;                     // loop: powerKeyTyped since the last tick
+
+void powerKeyTyped() { keyTyped = true; }
 static BatteryGauge gauge;
 static BatteryView batteryShown;                  // what ui last got
+
+static uint8_t backlightDuty(Backlight b) {
+    return b == Backlight::Full ? 255 : b == Backlight::Dim ? BACKLIGHT_DIM_DUTY : 0;
+}
 
 static void backlightSet(Backlight b) {
     if (b == backlightNow) return;
     const bool wasOff = backlightNow == Backlight::Off;
     backlightNow = b;
-    if (wasOff) uiPanelBlank(false);             // the frame it kept, before the light comes on
-    uiBacklight(b == Backlight::Full  ? 255
-                : b == Backlight::Dim ? BACKLIGHT_DIM_DUTY
-                                      : 0);
+    if (wasOff) {                                 // set the panel up from scratch: it may
+        uiPanelOn();                              // have been reset while off (see panelResync)
+        appRedraw();
+    }
+    uiBacklight(backlightDuty(b));
     if (b == Backlight::Off) uiPanelBlank(true);  // not just dark: not driving the image
     Serial.printf("[Power] backlight %s\n", b == Backlight::Full  ? "full"
                                             : b == Backlight::Dim ? "dim"
@@ -54,6 +67,7 @@ static PowerSource readSource(bool) {
              : gauge.known()    ? PowerSource::Battery
                                 : PowerSource::Unknown;
     if (source != prev) Serial.printf("[Power] source %s\n", powerSourceName());
+    if (source != prev && prev != PowerSource::Unknown) panelResync = true;
     return source;
 }
 #else
@@ -292,8 +306,18 @@ void powerBatteryReport() {
 void powerTick() {
     const uint32_t now = millis();
     policy.setSource(readSource(false), now);
+    if (panelResync) {
+        panelResync = false;
+        if (backlightNow != Backlight::Off) {     // off: the next wake sets it up anyway
+            uiPanelOn();
+            uiBacklight(backlightDuty(backlightNow));
+            appRedraw();
+            Serial.println("[Power] panel set up again (power source changed)");
+        }
+    }
     batteryTick(now);
-    const bool keyDown = inputKeyDown();
+    const bool keyDown = inputKeyDown() || keyTyped;
+    keyTyped = false;
     const bool wheelMoved = inputWheelPending();
     if (policy.backlight(now) == Backlight::Off && (keyDown || wheelMoved)) {
         inputDiscardWheel();                        // the waking turn only wakes

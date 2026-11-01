@@ -64,8 +64,14 @@ def read_env(path):
 
 
 def pick_port(preferred=None):
+    """`preferred` when present. A /dev/serial/by-id path names one device:
+    absent means None, never another device's port (with two boards plugged in
+    that would send settings or bench lines to the wrong one). Otherwise the
+    first ttyACM (a bare name drifts on a reset, ACM1 -> ACM0)."""
     if preferred and os.path.exists(preferred):
         return preferred
+    if preferred and "/by-id/" in preferred:
+        return None
     ports = sorted(glob.glob("/dev/ttyACM*"))
     return ports[0] if ports else None
 

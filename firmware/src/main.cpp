@@ -330,7 +330,7 @@ void setup() {
         Serial.printf("[WiFi] %s (rssi %d)\n",
                       WiFi.localIP().toString().c_str(), WiFi.RSSI());
         otaMarkHealthy();                          // this image boots and networks
-        uiNotice("Checking Hermes", Ink::Strong);
+        uiNotice(settingsStored().backend == "venice" ? "Checking Venice" : "Checking Hermes", Ink::Strong);
         const char* problem = selfTestRun();
         uiMsg(problem ? problem : "", problem ? Ink::Err : Ink::Ok);
         uiPanelHold();
@@ -374,6 +374,11 @@ static void composeSync() { uiComposeSet(compose.text()); }
 static void keyboardTick() {
     KbdEvent ev;
     while (keyboardPoll(ev)) {
+        // Typing is activity: it keeps the screen lit, and a key on a dark
+        // screen only wakes it, like the buttons (a stray Enter must not send).
+        const bool dark = powerBacklight() == Backlight::Off;
+        powerKeyTyped();
+        if (dark) continue;
         switch (ev.kind) {
         case KbdEv::Char:
             if (uiState == UI_IDLE && !menuOpen()) {

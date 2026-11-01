@@ -709,12 +709,12 @@ class Smoke:
         rc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
         if rc != 0:
             time.sleep(2.0)
-            self.port = provision.pick_port(None) or self.port   # may have renumbered
+            self.port = provision.pick_port(self.port) or self.port   # may have renumbered
             cmd[cmd.index("--port") + 1] = self.port
             rc = subprocess.run(cmd, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL).returncode
         time.sleep(1.5)                          # the S3 re-enumerates after the reset
-        self.port = provision.pick_port(None) or self.port
+        self.port = provision.pick_port(self.port) or self.port
         restart_watcher(self.port)
         time.sleep(1.5)
         self.reopen()
@@ -836,9 +836,9 @@ def main():
         sys.exit(f"{LOG} missing: start host/serial-watch.py first")
     if not provision.watcher_running():
         sys.exit("serial-watch.py is not running: start it first")
-    port = provision.pick_port(args.port) or (sorted(glob.glob("/dev/ttyACM*")) or [None])[0]
+    port = provision.pick_port(args.port)
     if not port:
-        sys.exit("no /dev/ttyACM* port")
+        sys.exit(f"no device on {args.port}" if args.port else "no /dev/ttyACM* port")
 
     smoke = Smoke(port)
     interrupted = None

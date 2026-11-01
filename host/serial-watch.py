@@ -18,8 +18,14 @@ import tty
 
 
 def pick_port(preferred):
+    """The port to read. A /dev/serial/by-id path names one device: wait for it
+    to come back, never another device's port (with two boards plugged in, an
+    unplug moved the watcher onto the other one). A bare ttyACM name drifts on
+    a reset (ACM1 -> ACM0), so then the first ttyACM present."""
     if os.path.exists(preferred):
         return preferred
+    if "/by-id/" in preferred:
+        return None
     ports = sorted(glob.glob("/dev/ttyACM*"))
     return ports[0] if ports else None
 

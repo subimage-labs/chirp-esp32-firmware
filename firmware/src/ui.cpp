@@ -13,28 +13,22 @@
 
 static TFT_eSPI tft;
 #if CHIRP_BL_PULSE
-// The T-Deck's backlight chip (LILYGO's setBrightness): a rising edge turns it
-// on at the brightest of 16 levels, each short low pulse steps one level down
-// (wrapping from 1 to 16), and 3 ms low turns it off. PWM on its pin is a pulse
-// train: the level it lands on depends on history (a wake once stayed dark).
-static uint8_t blLevel = 0;                       // loop: 0 = off, 1..16
-static void blSet(uint8_t level) {
-    if (level == 0) {
-        digitalWrite(TFT_BL, LOW);
-        delay(3);
-        blLevel = 0;
-        return;
-    }
-    if (blLevel == 0) {
-        digitalWrite(TFT_BL, HIGH);
-        blLevel = 16;
-        delayMicroseconds(30);
-    }
-    for (int n = (16 + blLevel - level) % 16; n > 0; n--) {
+// The T-Deck's backlight chip (LILYGO's setBrightness): 3 ms low turns it off,
+// a rising edge turns it on at the brightest of 16 levels, and each short low
+// pulse after that steps one level down. Its level can't be read back and a
+// power dip may reset it (a replug resets the display chip, power.cpp
+// panelResync), so every change starts from off: a 3 ms blink, then the
+// level counted down from 16. PWM on its pin would be a pulse train.
+static void blSet(uint8_t level) {                // 0 = off, 1..16
+    digitalWrite(TFT_BL, LOW);
+    delay(3);
+    if (level == 0) return;
+    digitalWrite(TFT_BL, HIGH);
+    delayMicroseconds(30);
+    for (int n = 16 - level; n > 0; n--) {
         digitalWrite(TFT_BL, LOW);
         digitalWrite(TFT_BL, HIGH);
     }
-    blLevel = level;
 }
 #else
 static const uint8_t BL_LEDC_CH = 7;
@@ -239,16 +233,25 @@ int uiTextWidth(const String& s) { return uiTextWidth(s.c_str()); }
 // panel's inversion after each (uiPanelHold): a text stream can drop it, and a
 // slice is then the longest it stays dropped (a thin column, not a band).
 // T-Deck camera, Rose Pine dark menu repaints, flash frames per run: one push
-// per line 5, 32 px slices 1-3, 8 px slices 3-7 (each slice is a new transfer).
+// per line 5, 32 px slices 1-3, 8 px slices 3-7. Each slice goes as ONE
+// transfer (one address window): the sprite's own partial push sends every
+// pixel row as its own window + data, ~21 per slice, and more transfers meant
+// more drops (and stray pixels in letters, e.g. the Chats tab's "New chat").
 static const int PUSH_SLICE = 32;   // px
+static uint16_t pushBuf[PUSH_SLICE * FONT_MAX_BOX];   // loop: one slice, rows packed
 static void pushLine(int L, int R, int y, int h) {
+    const uint16_t* img = (const uint16_t*)lineSpr.getPointer();   // rows of sprW, panel byte order
+    const bool swap = tft.getSwapBytes();
+    tft.setSwapBytes(false);                         // the sprite holds panel byte order already
     for (int x = L; x < R; x += PUSH_SLICE) {
         const int w = min(PUSH_SLICE, R - x);
+        for (int r = 0; r < h; r++) memcpy(pushBuf + r * w, img + r * sprW + x, w * sizeof(uint16_t));
         tft.startWrite();
-        lineSpr.pushSprite(x, y, x, 0, w, h);
+        tft.pushImage(x, y, w, h, pushBuf);
         tft.endWrite();
         uiPanelHold();
     }
+    tft.setSwapBytes(swap);
 }
 
 // Draws s with its top-left at (x, y), glyph i in colorOf(i), and returns the
