@@ -23,7 +23,7 @@ jobs:
       # host/test_publish_firmware.py signs and verifies with cryptography;
       # test_logo_web.py renders the logo through firmware/tools/logo_preview.py (Pillow).
       - name: Install Python test dependencies
-        run: sudo apt-get install -y python3-cryptography python3-pil
+        run: sudo apt-get update && sudo apt-get install -y python3-cryptography python3-pil
 
       # Ubuntu 24.04 runners default to 32-bit ASLR entropy; TSan binaries
       # abort with "unexpected memory mapping" unless this is lowered.
