@@ -6,39 +6,14 @@
 #include "config.h"
 #include "turn.h"
 #include "ui.h"
+#include "voice_detect.h"
 
 static bool voiceMode = false;
-static bool vSpeech = false;
-static bool vAnyDip = false;                      // saw quiet during this turn
-static uint32_t vLoudMs = 0, vSilenceMs = 0, vSpeechMs = 0;
+static VoiceDetector det;                         // DC blocker, floor, detector, pre-roll
 static uint32_t vLastActMs = 0, vMuteUntilMs = 0, vDrainReads = 0;
-static float vFloor = VOICE_FLOOR_SEED;           // room ambient (shared with idle)
-static float vMean = 0.0f;                        // DC blocker state (shared)
-static int16_t vPreRoll[VOICE_PREROLL_MS * SAMPLE_RATE / 1000];
-static size_t vPreIdx = 0, vPreCount = 0;
-static const size_t PREROLL_CAP = sizeof(vPreRoll) / sizeof(vPreRoll[0]);
 
 bool voiceOn() { return voiceMode; }
-bool voiceHearing() { return vSpeech; }
-
-// DC blocker in place (far off zero; decisions and captures use AC);
-// returns the AC peak.
-static int16_t removeDc(int16_t* pcm, size_t n) {
-    int16_t peak = 0;
-    for (size_t i = 0; i < n; i++) {
-        vMean = vMean * 0.998f + (float)pcm[i] * 0.002f;
-        const int16_t ac = (int16_t)constrain((int32_t)(pcm[i] - vMean), -32768, 32767);
-        pcm[i] = ac;
-        const int16_t a = ac < 0 ? -ac : ac;
-        if (a > peak) peak = a;
-    }
-    return peak;
-}
-
-static void trackFloor(int16_t peak) {
-    if ((float)peak < vFloor) vFloor = (float)peak;         // min-latch: instant
-    else vFloor = min(VOICE_FLOOR_MAX, vFloor * 1.008f);    // slow creep up
-}
+bool voiceHearing() { return det.hearing(); }
 
 // Idle ambient tracking: the main screen silently measures the room (local
 // energy statistics only — nothing is captured or sent), so voice mode
@@ -48,7 +23,7 @@ void ambientTick() {
     static int16_t tmp[READ_CHUNK / 2];
     const size_t br = micRead(tmp, READ_CHUNK, 20);
     if (!br) return;
-    trackFloor(removeDc(tmp, br / 2));
+    det.ambient(tmp, br / 2);
 }
 
 void voiceResume() {
@@ -62,9 +37,7 @@ void voiceResume() {
 void voiceSet(bool on) {
     if (on == voiceMode) return;
     voiceMode = on;
-    vSpeech = false;
-    vLoudMs = vSilenceMs = vSpeechMs = 0;
-    vPreIdx = vPreCount = 0;
+    det.reset();
     vLastActMs = millis();
     vMuteUntilMs = 0;
     if (on) {
@@ -85,25 +58,12 @@ void voiceSet(bool on) {
 }
 
 // Speech detected: open the turn with the pre-roll in front.
-static void openTurn(int16_t peak) {
-    vSpeech = true;
-    vSpeechMs = 0;
-    vSilenceMs = 0;
-    captureReset(peak);
+static void openTurn(const VoiceDetector::Result& r) {
+    captureReset(r.peak);
     uiMsg("Listening", Ink::Listen);
     captureStreamOpen();
-    const size_t start = (vPreIdx + PREROLL_CAP - vPreCount) % PREROLL_CAP;  // oldest
-    const size_t first = min(vPreCount, PREROLL_CAP - start);   // ring: two runs
-    if (first) captureAppend(vPreRoll + start, first * 2, peak);
-    if (vPreCount > first) captureAppend(vPreRoll, (vPreCount - first) * 2, peak);
-    vPreIdx = vPreCount = 0;
-}
-
-static void closeTurn() {
-    vSpeech = false;
-    vAnyDip = false;
-    vLoudMs = 0;
-    turnBegin(true);                              // keep mic for the next turn
+    for (const VoiceDetector::Span& s : r.preroll)         // ring: two runs, oldest first
+        if (s.n) captureAppend(s.data, s.n * 2, r.peak);
 }
 
 void voiceTick() {
@@ -113,74 +73,58 @@ void voiceTick() {
     if (!br) return;
     if (vDrainReads) { vDrainReads--; return; }   // stale audio after playback
     const size_t n = br / 2;
-    const int16_t peak = removeDc(tmp, n);
-    const uint32_t durMs = (uint32_t)br * 1000UL / (SAMPLE_RATE * 2UL);
-    const int32_t startTh = max((int32_t)VOICE_START_MIN,
-                                (int32_t)(vFloor * VOICE_START_RATIO));
-    const int32_t endTh = max((int32_t)VOICE_END_MIN,
-                              (int32_t)(vFloor * VOICE_END_RATIO));
-    if (peak >= endTh) vLastActMs = millis();
+    const bool wasHearing = det.hearing();
+    const float floorBefore = det.floor();        // the floor is frozen while hearing
+    const VoiceDetector::Result r =
+        det.feed(tmp, n, [](const int16_t* p, size_t samples, int16_t pk) {
+            return captureAppend(p, samples * 2, pk);
+        });
+    if (r.active) vLastActMs = millis();
 
-    if (!vSpeech) {
-        for (size_t i = 0; i < n; i++) {          // rolling pre-roll ring
-            vPreRoll[vPreIdx] = tmp[i];
-            vPreIdx = (vPreIdx + 1) % PREROLL_CAP;
-            if (vPreCount < PREROLL_CAP) vPreCount++;
-        }
-        vLoudMs = (peak >= startTh)                        // leaky integrator:
-                    ? vLoudMs + durMs                       // dips between syllables
-                    : (vLoudMs > durMs ? vLoudMs - durMs : 0);  // decay, not reset
-        trackFloor(peak);
+    if (!wasHearing) {
         static uint32_t vLastLogMs = 0;            // room tuning telemetry
         if (millis() - vLastLogMs > 1000) {
             vLastLogMs = millis();
             Serial.printf("[Voice] idle ac=%d mean=%d floor=%d th=%d/%d loud=%ums\n",
-                          (int)peak, (int)vMean, (int)vFloor, (int)startTh,
-                          (int)endTh, (unsigned)vLoudMs);
+                          (int)r.peak, (int)det.mean(), (int)det.floor(), (int)r.startTh,
+                          (int)r.endTh, (unsigned)det.loudMs());
         }
-        if (vLoudMs < VOICE_START_MS) {
+        if (r.event == VoiceDetector::Event::None) {
             if (millis() - vLastActMs > VOICE_IDLE_EXIT_MS)
                 voiceSet(false);                  // been quiet: leave voice mode
             return;
         }
-        openTurn(peak);
-        return;                                    // triggering chunk already in pre-roll
-    }
-
-    if (!captureAppend(tmp, br, peak)) {          // cap: close the turn now
-        closeTurn();
+        openTurn(r);                               // triggering chunk already in pre-roll
         return;
     }
-    vSpeechMs += durMs;
-    if (peak < endTh) { vSilenceMs += durMs; vAnyDip = true; }
-    else vSilenceMs = 0;
+
+    if (r.event == VoiceDetector::Event::CapClose) {   // cap: close the turn now
+        turnBegin(true);                          // keep mic for the next turn
+        return;
+    }
     static uint32_t vLastUiMs = 0;                  // interactive countdown
     if (millis() - vLastUiMs > 100) {
         vLastUiMs = millis();
         char vb[28];
-        if (peak < endTh && vSpeechMs >= VOICE_MIN_SPEECH_MS)
+        if (r.peak < r.endTh && det.speechMs() >= VOICE_MIN_SPEECH_MS)
             snprintf(vb, sizeof(vb), "Closing %us",
-                     (unsigned)((VOICE_END_MS > vSilenceMs
-                                 ? VOICE_END_MS - vSilenceMs : 0) + 999) / 1000);
+                     (unsigned)((VOICE_END_MS > det.silenceMs()
+                                 ? VOICE_END_MS - det.silenceMs() : 0) + 999) / 1000);
         else
             snprintf(vb, sizeof(vb), "Listening %us",
                      (unsigned)((millis() - captureStartMs()) / 1000));
         uiMsg(vb, Ink::Listen);
     }
-    if (vSpeechMs > VOICE_RECOVER_MS && !vAnyDip) {   // constant noise, not speech
+    if (r.event == VoiceDetector::Event::Reject) {    // constant noise, not speech
         Serial.printf("[Voice] sustained noise: floor %d->%d, rejecting\n",
-                      (int)vFloor, (int)peak);
-        vFloor = min(VOICE_FLOOR_MAX, (float)peak);
-        vSpeech = false;
-        vAnyDip = false;
-        vLoudMs = 0;
+                      (int)floorBefore, (int)r.peak);
         captureReset(0);
         captureStreamClose();
         return;
     }
-    if (vSpeechMs >= VOICE_MIN_SPEECH_MS && vSilenceMs >= VOICE_END_MS) {
+    if (r.event == VoiceDetector::Event::Close) {
         Serial.printf("[Voice] turn close speech=%ums sil=%ums peak=%d\n",
-                      (unsigned)vSpeechMs, (unsigned)vSilenceMs, (int)peak);
-        closeTurn();
+                      (unsigned)det.speechMs(), (unsigned)det.silenceMs(), (int)r.peak);
+        turnBegin(true);                          // keep mic for the next turn
     }
 }

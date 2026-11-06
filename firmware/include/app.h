@@ -46,9 +46,11 @@
 // boot splash, the empty chat screen and the Setup tab;
 // loop task only, no state) · input (keys, wheel, gestures)
 // · capture (mic, recording buffer, STT upload) · voice (hands-free +
-// ambient floor) · speech (playback, TTS chunk pipeline; the decoder plays
+// ambient floor; the detector's rules are pure, voice_detect.h) · speech
+// (playback, TTS chunk pipeline; the decoder plays
 // MP3 straight from memory, mem_source.h) · hermes (chat API,
-// session) · venice (backend TLS transport: the pinned root) · turn (turn worker, THINKING/SPEAKING) · menu (Chats, Theme, Text and
+// session; the stream's retry, status, line and end rules are pure,
+// sse_stream.h) · venice (backend TLS transport: the pinned root) · turn (turn worker, THINKING/SPEAKING) · menu (Chats, Theme, Text and
 // Setup tabs) · power (backlight timeline, sleep, battery level via the
 // charger ADC, slow-animation flag) · bench (serial test commands,
 // BENCH_CMDS builds only) · main (setup, loop, input dispatch,

@@ -2,6 +2,8 @@
 
 #include <ArduinoJson.h>
 #include <Preferences.h>
+#include "endpoint_urls.h"
+#include "serial_settings.h"
 #include "wifi_pick.h"
 
 // One JSON record under one key: an NVS write of a single key is atomic, so
@@ -59,81 +61,54 @@ static String toJson(const DeviceSettings& s) {
     return json;
 }
 
-// Present string members replace the stored value; absent ones keep it.
-static std::string member(JsonDocument& doc, const char* name, const std::string& keep) {
-    return doc[name].is<const char*>() ? std::string(doc[name].as<const char*>()) : keep;
+// A string member becomes present; any other type (or absence) is not.
+static OptStr optStr(JsonDocument& doc, const char* name) {
+    return doc[name].is<const char*>() ? someStr(doc[name].as<const char*>()) : OptStr();
+}
+
+// A string member is one entry; an array member contributes its string
+// elements in order; any other type is empty.
+static std::vector<std::string> strList(JsonDocument& doc, const char* name) {
+    std::vector<std::string> out;
+    if (doc[name].is<const char*>()) out.push_back(doc[name].as<const char*>());
+    for (const char* f : doc[name].as<JsonArray>())
+        if (f) out.push_back(f);
+    return out;
 }
 
 bool settingsInputFromJson(const char* json, SettingsInput& out) {
     JsonDocument doc;
     if (deserializeJson(doc, json) || !doc.is<JsonObject>()) return false;
-    SettingsInput in;
-    // ssid / pass add or edit ONE network; absent ssid adds none. "pass":""
-    // makes the network open; an absent pass keeps the saved password of the
-    // same-named network (a saved open network stays open).
-    in.ssid = member(doc, "ssid", "");
-    const int saved = findNetwork(stored.networks, in.ssid);
-    in.open = doc["pass"].is<const char*>() ? !doc["pass"].as<const char*>()[0]
-                                            : saved >= 0 && stored.networks[saved].pass.empty();
-    in.pass = member(doc, "pass", "");
-    in.hermes = member(doc, "hermes", stored.hermes);
-    in.shim = member(doc, "shim", stored.shim);
-    in.backend = member(doc, "backend", stored.backend.empty() ? "local" : stored.backend);
-    in.backendSet = doc["backend"].is<const char*>();
-    in.venice = member(doc, "venice", stored.venice);
-    in.veniceKey = member(doc, "veniceKey", "");
-    in.addProfile = member(doc, "profile", "");
-    in.addKey = member(doc, "key", "");
-    in.lookSet = doc["look"].is<const char*>();
-    in.look = member(doc, "look", "");
-    in.useSet = doc["use"].is<const char*>();
-    in.use = member(doc, "use", "");
-    if (doc["forget"].is<const char*>()) in.forget.push_back(doc["forget"].as<const char*>());
-    for (const char* f : doc["forget"].as<JsonArray>())
-        if (f) in.forget.push_back(f);
-    if (doc["forgetWifi"].is<const char*>())
-        in.forgetNetworks.push_back(doc["forgetWifi"].as<const char*>());
-    for (const char* f : doc["forgetWifi"].as<JsonArray>())
-        if (f) in.forgetNetworks.push_back(f);
-    out = in;
+    SerialMembers m;
+    m.ssid = optStr(doc, "ssid");
+    m.pass = optStr(doc, "pass");
+    m.hermes = optStr(doc, "hermes");
+    m.shim = optStr(doc, "shim");
+    m.backend = optStr(doc, "backend");
+    m.venice = optStr(doc, "venice");
+    m.veniceKey = optStr(doc, "veniceKey");
+    m.profile = optStr(doc, "profile");
+    m.key = optStr(doc, "key");
+    m.look = optStr(doc, "look");
+    m.use = optStr(doc, "use");
+    m.forget = strList(doc, "forget");
+    m.forgetWifi = strList(doc, "forgetWifi");
+    out = settingsInputFromMembers(m, stored);
     return true;
 }
 
 static void deriveEndpoints() {
-    if (stored.backend == "venice") {
-        HostPort vp{"", 0, Scheme::Https};
-        parseHostPort(stored.venice, VENICE_PORT_DEFAULT, vp);
-        const String base = String(hostSchemeString(vp).c_str()) + "/api/v1";
-        endpoints.chatUrl = base + "/chat/completions";
-        endpoints.sttUrl = base + "/audio/transcriptions";
-        endpoints.ttsUrl = base + "/audio/speech";
-        endpoints.shimHealthUrl = base + "/models";       // the self-test probe
-        endpoints.sessionsUrl = "";                       // no server sessions
-        endpoints.otaManifestUrl = "";                    // no shim: USB-only updates
-        endpoints.otaBinUrl = "";
-        endpoints.shimHost = vp.host.c_str();
-        endpoints.shimPort = vp.port;
-        endpoints.auth = String("Bearer ") + stored.veniceKey.c_str();
-        return;
-    }
-    const Agent& agent = stored.agents[stored.active];
-    HostPort hermes{"", 0, Scheme::Bare}, shim{"", 0, Scheme::Bare};
-    parseHostPort(stored.hermes, HERMES_PORT_DEFAULT, hermes);
-    if (stored.shim.empty() || !parseHostPort(stored.shim, SHIM_PORT_DEFAULT, shim))
-        shim = HostPort{hermes.host, SHIM_PORT_DEFAULT};
-    String hermesBase = String("http://") + hermes.host.c_str() + ":" + hermes.port;
-    if (!agent.profile.empty()) hermesBase += String("/p/") + agent.profile.c_str();
-    const String shimBase = String("http://") + shim.host.c_str() + ":" + shim.port;
-    endpoints.chatUrl = hermesBase + "/v1/chat/completions";
-    endpoints.sessionsUrl = hermesBase + "/api/sessions";
-    endpoints.sttUrl = shimBase + "/v1/audio/transcriptions";
-    endpoints.ttsUrl = shimBase + "/v1/audio/speech";
-    endpoints.shimHealthUrl = shimBase + "/health";
-    endpoints.otaManifestUrl = shimBase + "/firmware/manifest.json";
-    endpoints.otaBinUrl = shimBase + "/firmware/chirp.bin";
-    endpoints.shimHost = shim.host.c_str();
-    endpoints.shimPort = shim.port;
-    endpoints.auth = String("Bearer ") + agent.key.c_str();
+    const EndpointUrls u = deriveEndpointUrls(stored);
+    endpoints.chatUrl = u.chatUrl.c_str();
+    endpoints.sessionsUrl = u.sessionsUrl.c_str();
+    endpoints.sttUrl = u.sttUrl.c_str();
+    endpoints.ttsUrl = u.ttsUrl.c_str();
+    endpoints.shimHealthUrl = u.shimHealthUrl.c_str();
+    endpoints.otaManifestUrl = u.otaManifestUrl.c_str();
+    endpoints.otaBinUrl = u.otaBinUrl.c_str();
+    endpoints.shimHost = u.shimHost.c_str();
+    endpoints.shimPort = u.shimPort;
+    endpoints.auth = u.auth.c_str();
 }
 
 void settingsLoad() {

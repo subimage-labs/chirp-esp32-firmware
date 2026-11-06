@@ -52,6 +52,16 @@ void hermesSessionForget() {
 }
 
 // ---------------------------------------------------------------- stream
+// The JSON seam of sse::Parser: one data event's first choice. A member that
+// is absent or not a string is "".
+static bool jsonChoice(const std::string& payload, std::string& content, std::string& finish) {
+    JsonDocument doc;
+    if (deserializeJson(doc, payload.data(), payload.size())) return false;
+    content = doc["choices"][0]["delta"]["content"] | "";
+    finish = doc["choices"][0]["finish_reason"] | "";
+    return true;
+}
+
 AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*stopped)()) {
     const bool venice = settingsStored().backend == "venice";
     String body;
@@ -88,10 +98,10 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
 
     // One retry when the connection is refused (gateway restarting, WiFi just
     // back): nothing reached Hermes, so asking again can't double the answer.
-    // Anything later (timeouts, errors) is not retried.
+    // Anything later (timeouts, errors) is not retried (sse::tryAgain).
     HTTPClient http;
-    int code = HTTPC_ERROR_CONNECTION_REFUSED;
-    for (int attempt = 0; attempt < 2 && code == HTTPC_ERROR_CONNECTION_REFUSED; attempt++) {
+    int code = sse::CONN_REFUSED;
+    for (int attempt = 0; sse::tryAgain(attempt, code); attempt++) {
         if (attempt) {
             http.end();
             Serial.println("[Hermes] connection refused, retrying once");
@@ -119,13 +129,7 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
         Serial.printf("[Hermes] HTTP %d: %s\n", code,
                       code > 0 ? http.getString().c_str() : "(conn)");
         http.end();
-        if (venice) {
-            if (code == 401) return AskEnd::BadKey;
-            if (code == 402) return AskEnd::NoCredit;
-            if (code == 403) return AskEnd::NotAllowed;
-            if (code == 429) return AskEnd::RateLimited;
-        }
-        return stopped() ? AskEnd::Stopped : AskEnd::Unreachable;
+        return sse::endForStatus(venice, code, stopped());
     }
     String sid = http.header("X-Hermes-Session-Id");
     if (!venice && sid.length()) sessionId = sid;  // continue this conversation
@@ -134,75 +138,52 @@ AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*sto
     stream->setTimeout((uint16_t)(SSE_IDLE_LIMIT_MS > 60000UL ? 60000UL
                                                               : SSE_IDLE_LIMIT_MS));
 
-    char lineBuf[2048];
-    size_t lineLen = 0;
-    bool finished = false, sawFinish = false, gotDelta = false;
+    sse::Parser parser;
     std::string venAnswer;                         // venice: this turn's history entry
-    const uint32_t deadline = millis() + HERMES_STREAM_BUDGET_MS;
+    std::string delta;
+    const uint32_t startMs = millis();
     // Last data event: the gateway writes ": keepalive" comments while the
     // model hasn't answered, and the raw stream also carries the chunked
     // encoding's size lines, so only "data:" lines count as progress.
     uint32_t idleStart = millis();
 
-    while (millis() < deadline) {
-        if (stopped()) {
-            Serial.println("[Hermes] stopped by the user");
-            http.end();
-            return AskEnd::Stopped;
-        }
-        if (!http.connected() && stream->available() == 0) break;
-        size_t avail = stream->available();
-        if (avail == 0) {
-            if (millis() - idleStart > SSE_IDLE_LIMIT_MS) {
-                Serial.printf("[Hermes] no data for %us\n", (unsigned)(SSE_IDLE_LIMIT_MS / 1000));
-                http.end();
-                return AskEnd::Silent;
-            }
+    sse::Step endedBy;
+    for (;;) {
+        const size_t avail = stream->available();
+        endedBy = sse::step(millis() - startMs, millis() - idleStart, stopped(),
+                            http.connected(), avail, HERMES_STREAM_BUDGET_MS, SSE_IDLE_LIMIT_MS);
+        if (endedBy == sse::Step::Wait) {
             delay(2);
             continue;
         }
-        while (avail-- > 0) {
+        if (endedBy != sse::Step::Read) break;
+        for (size_t left = avail; left-- > 0;) {
             const int c = stream->read();
             if (c < 0) break;
-            if (c == '\n') {
-                lineBuf[lineLen] = '\0';
-                if (strncmp(lineBuf, "data:", 5) == 0) {
-                    idleStart = millis();
-                    char* data = lineBuf + 5;
-                    if (*data == ' ') data++;
-                    if (strcmp(data, "[DONE]") == 0) {
-                        finished = true;
-                    } else {
-                        JsonDocument doc;
-                        if (!deserializeJson(doc, data, lineLen - (data - lineBuf))) {
-                            const char* delta = doc["choices"][0]["delta"]["content"];
-            if (delta && delta[0] != '\0') {
-                gotDelta = true;
+            const sse::Parser::Fed f = parser.feed((uint8_t)c, jsonChoice, delta);
+            if (f.dataLine) idleStart = millis();
+            if (f.deliver) {
                 if (venice) venAnswer += delta;
-                onDelta(delta);
+                onDelta(delta.c_str());
             }
-                            const char* fin = doc["choices"][0]["finish_reason"];
-                            if (fin && fin[0] != '\0') sawFinish = true;
-                        }
-                    }
-                }
-                lineLen = 0;
-                if (finished) break;
-            } else if (c != '\r') {
-                if (lineLen < sizeof(lineBuf) - 1) lineBuf[lineLen++] = (char)c;
-            }
+            if (parser.finished()) break;
         }
-        if (finished) break;
+        if (parser.finished()) {
+            endedBy = sse::Step::Done;
+            break;
+        }
     }
+    if (endedBy == sse::Step::Stopped)
+        Serial.println("[Hermes] stopped by the user");
+    else if (endedBy == sse::Step::Idle)
+        Serial.printf("[Hermes] no data for %us\n", (unsigned)(SSE_IDLE_LIMIT_MS / 1000));
     http.end();
-    if (finished || sawFinish || gotDelta) {
-        if (venice && !venAnswer.empty()) {
-            vHistory.emplace_back(std::string(q.c_str()), venAnswer);
-            venice_policy::trimHistory(vHistory);
-        }
-        return AskEnd::Answered;
+    const AskEnd end = sse::askEnd(endedBy, parser.sawFinish(), parser.gotDelta());
+    if (end == AskEnd::Answered && venice && !venAnswer.empty()) {
+        vHistory.emplace_back(std::string(q.c_str()), venAnswer);
+        venice_policy::trimHistory(vHistory);
     }
-    return millis() < deadline ? AskEnd::Unreachable : AskEnd::Silent;
+    return end;
 }
 
 // ---------------------------------------------------------------- menu data

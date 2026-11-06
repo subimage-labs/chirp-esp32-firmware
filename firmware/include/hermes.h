@@ -1,7 +1,9 @@
 // hermes.h — Hermes chat API (the active agent's profile): streamed answers,
 // the session that carries conversation history, and the session list/messages
 // for the conversations menu. The persona is the profile's own (its SOUL.md
-// on the Hermes host); the device sends no system prompt.
+// on the Hermes host); the device sends no system prompt. The stream's pure
+// rules (retry, status mapping, SSE lines, loop timing, AskEnd) are in
+// sse_stream.h.
 //
 // Ownership: the session id is written by the turn worker during a turn
 // (server-issued on the first answer) and by the loop (menu, new chat,
@@ -13,6 +15,7 @@
 #include <vector>
 
 #include "app.h"
+#include "sse_stream.h"
 
 struct SessionItem {
     String id;
@@ -26,17 +29,6 @@ void hermesSessionForget();           // new conversation, also across reboots
 
 // Worker: one streamed answer. onDelta receives each content delta; stopped
 // is polled while waiting and ends the stream early when it returns true.
-enum class AskEnd : uint8_t {
-    Answered,      // [DONE], a finish reason, or at least one delta
-    Unreachable,   // no HTTP 200, or the connection closed with no answer
-    Silent,        // connected, but no data event for SSE_IDLE_LIMIT_MS (the
-                   // gateway's keepalive comments don't count)
-    Stopped,       // stopped() returned true
-    BadKey,        // venice: 401 — the stored key is wrong or revoked
-    NoCredit,      // venice: 402 — the prepaid balance is spent
-    NotAllowed,    // venice: 403 — the key's IP allowlist rejected us
-    RateLimited,   // venice: 429 — the rate limit or the failure budget
-};
 AskEnd hermesStreamAsk(const String& q, void (*onDelta)(const char*), bool (*stopped)());
 
 // Loop: conversations menu and the boot self-test. Status codes as in

@@ -19,16 +19,17 @@ The tests stop regressions in rules that users depend on:
 
 | Area | What is checked | Where |
 |---|---|---|
-| Settings and setup | Form merge rules, host parsing, access to the setup page, setup rows | `setup_form`, `setup_view`, `portal_layout` tests |
+| Settings and setup | Form merge rules, host parsing, serial settings, the address and key each request uses, access to the setup page, setup rows | `setup_form`, `serial_settings`, `endpoint_urls`, `setup_view`, `setup_view_voice`, `portal_layout` tests |
 | WiFi | Network order, strongest first, hidden networks | `wifi_pick` test |
 | Input | Wheel, ball, keyboard, tap and hold gestures, action routing | `wheel`, `balltap`, `keymap`, `gesture`, `keyring`, `route` tests |
 | Layout and fonts | Geometry on all panel sizes and font cuts, text fitting | `ui_layout`, `font`, `bubbles`, `anchor` tests |
 | Look and theme | Colors, contrast, avatar parts, logo | `theme`, `avatar`, `logo` tests and `test_logo_web.py` |
-| Speech and turns | Chunking, memory playback, answer text handoff, history | `sentence_packer`, `mem_source`, `turntext`, `venice_policy`, `line_store` tests |
+| Speech and turns | Answer stream reading and its end decision, chunking, memory playback, answer text handoff, history | `sse_stream`, `sentence_packer`, `mem_source`, `turntext`, `venice_policy`, `line_store` tests |
+| Voice detection | Hands-free start and stop, noise floor, the speech kept from before the start | `voice_detect` test |
 | Power | Dim, sleep and wake timeline, battery gauge | `power_policy`, `battery`, `expiry` tests |
-| Boot and OTA | Boot check messages, manifest parsing, install decision | `selftest_policy`, `ota_policy` tests, `host/test_publish_firmware.py` |
+| Boot and OTA | Boot check messages, manifest parsing, install decision, a manifest made by the publish tool parsed by the device code | `selftest_policy`, `ota_policy`, `ota_manifest_cross` tests, `host/test_publish_firmware.py` |
 | Build | Release images do not carry build machine paths | `test_build_paths.py` |
-| Host tools | Pairing, provisioning, the audio shim limits, the secret guard | `host/test_*.py` |
+| Host tools | Pairing, provisioning, serial port choice and replies, the audio shim limits, the secret guard | `host/test_*.py` |
 
 Some tests run with a thread checker or a memory checker. Those check the code that two tasks share.
 

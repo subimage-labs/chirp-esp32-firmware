@@ -57,6 +57,10 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/ota_policy_test.cpp" -o "$out/ota_policy_test"
 "$out/selftest_policy_test"
 "$out/ota_policy_test"
+python3 -W error "$here/gen_ota_manifest.py" "$out/ota-manifest"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/ota_manifest_cross_test.cpp" -o "$out/ota_manifest_cross_test"
+"$out/ota_manifest_cross_test" "$out/ota-manifest"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/theme_test.cpp" -o "$out/theme_test"
 "$out/theme_test"
@@ -102,11 +106,27 @@ g++ -std=c++11 -O1 -Wall -Wextra -Werror -fsyntax-only -I"$fw/include" \
 g++ -std=c++11 -O1 -Wall -Wextra -Werror -I"$fw/include" \
     "$here/avatar_preview.cpp" -o "$out/avatar_preview"
 "$out/avatar_preview" stats 500 >/dev/null
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/endpoint_urls_test.cpp" -o "$out/endpoint_urls_test"
+"$out/endpoint_urls_test"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/serial_settings_test.cpp" -o "$out/serial_settings_test"
+"$out/serial_settings_test"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/sse_stream_test.cpp" -o "$out/sse_stream_test"
+"$out/sse_stream_test"
+g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/voice_detect_test.cpp" -o "$out/voice_detect_test"
+"$out/voice_detect_test"
+g++ -std=c++11 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
+    "$here/setup_view_voice_test.cpp" -o "$out/setup_view_voice_test"
+"$out/setup_view_voice_test"
 PYTHONDONTWRITEBYTECODE=1 python3 -W error "$here/test_logo_web.py"
 PYTHONDONTWRITEBYTECODE=1 python3 -W error "$here/test_build_paths.py"
 python3 -W error "$here/../../../host/test_avatar_look.py"
 python3 -W error "$here/../../../host/test_pair.py"
 python3 -W error "$here/../../../host/test_provision.py"
+python3 -W error "$here/../../../host/test_serial_io.py"
 python3 -W error "$here/../../../host/test_publish_firmware.py"
 python3 -W error "$here/../../../host/test_audio_shim.py"
 python3 -W error "$here/../../../host/test_smoke.py"
