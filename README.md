@@ -1,131 +1,151 @@
 <p align="center"><img src="docs/chirp-logo.png" alt="chirp!" width="288"></p>
 
-# chirp! — a pocket voice companion for the T-Embed and T-Deck
+# Chirp! Your pocket voice agent interface for ESP32 devices
 
-chirp turns a LilyGO **T-Embed CC1101 Plus** or a LilyGO **T-Deck** into a
-push-to-talk voice companion. Hold a key, speak, hear the answer, and watch
-the conversation on the screen. The little pixel-art characters you see there
-are called Chirpers.
+Chirp runs on the LilyGO T-Embed CC1101 Plus and the LilyGO T-Deck. More
+devices will follow.
 
-## Why it is interesting
+Hold the talk key and speak. The device sends your question to an AI agent
+and speaks the answer. The conversation shows on the screen. Small pixel
+characters, the Chirpers, show what the agent does.
 
-- **Two ways to run it.** *Venice* is the cloud route: one API key, no
-  computer needed. *Hermes* is your own agent on your own machine; speech
-  recognition and the voice run locally and stay private.
-- **Pocket-sized.** Everything fits in one small ESP32-S3 device with a
-  speaker, a microphone and a screen.
-- **Set up from your phone.** The device shows its own WiFi name, password
-  and a QR code. Join it, and a setup page opens.
-- **Remembers several WiFi networks** (up to 5) and joins the strongest one in
-  range.
-- **Yours to style.** Six themes (dark and light), four fonts in three sizes,
-  and Chirpers that you can browse and keep.
+## What chirp does
 
-| | **Venice** (cloud) | **Hermes** (your own machine) |
+- It works with two backends: Venice in the cloud, or Hermes on your own
+  computer. You select one during setup.
+- You set it up from a phone. You do not need an app.
+- It saves up to 5 WiFi networks and connects to the strongest one in range.
+- You can change the theme, the font, the text size and the Chirper.
+
+## Two backends
+
+| | Venice | Hermes |
 |---|---|---|
-| Who answers | Venice's hosted chat, speech-to-text and voice models | your own [Hermes Agent](https://hermes-agent.nousresearch.com/docs/getting-started/installation) profile; listening (whisper) and the voice (Paradee) run on your machine |
-| You need | a Venice account with API credit and one API key | a Linux machine on the same WiFi that runs Hermes and chirp's speech server |
-| Cost | Venice charges credit for each answer (listening, thinking and speaking are separate calls) | whatever your Hermes model provider charges; the speech parts are free and local |
-| Privacy | your voice and text go to Venice over HTTPS | stays on your own network |
+| Answers come from | Venice cloud models | Your own [Hermes Agent](https://hermes-agent.nousresearch.com/docs/getting-started/installation) profile |
+| Speech to text and voice | Venice cloud | Your own computer |
+| You need | A Venice account with API credit, and an API key | A Linux computer on the same WiFi that runs Hermes and the chirp speech server |
+| Cost | Venice charges credit for each answer | The cost of your Hermes model provider. Speech is free. |
+| Your data | Goes to Venice over https | Stays on your network |
 
 ## Quick start
 
-### 1. Get what you need
+### 1. Get the parts
 
-- A T-Embed CC1101 Plus or a T-Deck, and a USB-C cable that carries data
-  (charge-only cables do not work).
-- A phone with a browser, and a **2.4 GHz** WiFi network the device can join
-  (a network with a browser sign-in page will not work).
-- Venice: an API key from your [Venice account](https://docs.venice.ai/guides/getting-started/generating-api-key).
-  Hermes: a Linux machine, see [docs/setup-hermes.md](docs/setup-hermes.md).
-- Git and [PlatformIO](https://platformio.org/install/cli) (`pip install
-  platformio`), or Chrome/Edge for the T-Embed browser installer.
+- A T-Embed CC1101 Plus or a T-Deck.
+- A USB-C cable that carries data. A charge-only cable does not work.
+- A phone with a web browser.
+- A 2.4 GHz WiFi network. A network with a sign-in page does not work.
+- For Venice: an API key from your
+  [Venice account](https://docs.venice.ai/guides/getting-started/generating-api-key).
+- For Hermes: a Linux computer. See [Hermes setup](docs/setup-hermes.md).
+- On your computer: Git and [PlatformIO](https://platformio.org/install/cli)
+  (`pip install platformio`). For the T-Embed, you can use the browser
+  installer in Chrome or Edge instead.
+
+### 2. Get the code
 
 ```sh
-git clone --branch tdeck-venice <repo-url> chirp-esp32-firmware
+git clone <repo-url> chirp-esp32-firmware
 cd chirp-esp32-firmware
 ```
 
-### 2. Flash it
+### 3. Install the firmware
+
+Connect the device with the USB cable. Then run the command for your device:
 
 ```sh
 pio run -d firmware -e t-embed-cc1101 -t upload     # T-Embed CC1101 Plus
 pio run -d firmware -e t-deck -t upload             # T-Deck
 ```
 
-Always name the board with `-e`. The T-Embed can also be flashed from the
-browser, and a T-Deck that will not flash over serial can use USB-JTAG: see
-[docs/flashing.md](docs/flashing.md).
+Always give the device name with `-e`. Without it, PlatformIO installs the
+firmware of every device, one after the other.
 
-### 3. First setup on your phone
+For the browser installer, and for a T-Deck that does not accept the upload,
+see [Installing the firmware](docs/flashing.md).
 
-A device with no settings starts its own WiFi network. Its screen shows the
-name `Chirp-XXXX`, a one-time password and a QR code.
+### 4. Set up the device from your phone
 
-1. On the phone, scan the QR code (or type the password) to join `Chirp-XXXX`.
-2. The setup page opens by itself. If not, open any plain `http://` address.
-3. Pick your WiFi network and enter its password.
-4. Choose **Venice** and paste your API key, or **Hermes on my network**.
-5. Tap **Save and restart**. The chat screen with the talk hint means it is
-   ready.
+A device without settings starts its own WiFi network. The screen shows the
+network name (`Chirp-XXXX`), a password and a QR code.
 
-For Hermes, run `host/setup.sh` and `host/pair.py` on the Hermes machine first;
-see [docs/setup-hermes.md](docs/setup-hermes.md). More detail for the Venice
-route is in [docs/setup-venice.md](docs/setup-venice.md).
+1. Scan the QR code with the phone, or type the password. The phone connects
+   to `Chirp-XXXX`.
+2. Wait for the setup page to open. If it does not open, go to any `http://`
+   address in the browser.
+3. Select your WiFi network and type its password.
+4. Select **Venice** and type your API key. Or select **Hermes on my network**.
+5. Tap **Save and restart**.
 
-### 4. Talk
+The device restarts. When the chat screen shows the talk hint, the device is
+ready.
 
-Hold the talk key, ask something, release. The answer is spoken as it arrives.
+For Hermes, first run `host/setup.sh` and `host/pair.py` on the Hermes
+computer. See [Hermes setup](docs/setup-hermes.md). For more about Venice, see
+[Venice setup](docs/setup-venice.md).
+
+### 5. Talk
+
+Hold the talk key and speak. Release the key. The device speaks the answer.
 
 ## Controls
 
-**T-Embed CC1101 Plus**
+T-Embed CC1101 Plus:
 
-| Action | How |
+| To do this | Do this |
 |---|---|
-| Talk (release to ask; press while it speaks to interrupt) | hold the dial key |
-| Hands-free voice mode on/off | double-tap the dial key |
-| Menu: next tab / back to chat (5 taps reach **Setup**) | tap the side key |
-| Select / scroll | turn the dial |
-| Volume (0–21) | hold the side key 1.5 s, turn the dial |
+| Ask a question | Hold the dial key and speak. Release the key. |
+| Stop the answer | Push the dial key. |
+| Start or stop hands-free mode | Push the dial key two times quickly. |
+| Open the menu or go to the next tab | Push the side key. Push it 5 times to go to **Setup**. |
+| Select or scroll | Turn the dial. |
+| Use the selected item | Push the dial key. |
+| Change the volume (0-21) | Hold the side key for 1.5 seconds. Then turn the dial. |
 
-**T-Deck**
+T-Deck:
 
-| Action | How |
+| To do this | Do this |
 |---|---|
-| Talk (release to ask; press while it speaks to interrupt) | hold the **mic key** |
-| Hands-free voice mode on/off | double-tap the mic key |
-| Menu: next tab (5 clicks reach **Setup**) / leave | click the trackball / **Backspace** |
-| Select / scroll | roll the trackball; **Enter** activates |
-| Volume (0–21) | hold the ball click, roll |
-| Type a question | type, **Enter** sends |
+| Ask a question | Hold the mic key and speak. Release the key. |
+| Type a question | Type it. Then push **Enter**. |
+| Stop the answer | Push the mic key. |
+| Start or stop hands-free mode | Push the mic key two times quickly. |
+| Open the menu or go to the next tab | Click the trackball. Click it 5 times to go to **Setup**. |
+| Close the menu | Push **Backspace**. |
+| Select or scroll | Roll the trackball up or down. |
+| Use the selected item | Push **Enter**. |
+| Change the volume (0-21) | Hold the trackball click. Then roll the trackball. |
 
-Every control and screen is described in [docs/using.md](docs/using.md).
+All controls and screens are in [Using chirp](docs/using.md).
 
 ## Help
 
-| Problem | Fix |
+| Problem | What to do |
 |---|---|
-| The computer sees no port / upload cannot connect | Use a data cable. Hold **BOOT** (T-Deck: the trackball click) while plugging in or tapping reset. |
-| No `Chirp-XXXX` network on the phone | Read the name and password on the device screen. 2.4 GHz only; move closer. Stay connected if the phone says "no internet". |
-| Setup page does not open | Open any plain `http://` address (not `https://`). |
-| WiFi failed at boot | Wrong password, a 5 GHz-only network, or a sign-in page. Open **Setup → Set up on phone** and fix or add a network. |
-| Venice: *Bad API key* or *Out of credit* | Enter the key again on the setup page, or add credit to your Venice account. |
-| Hermes: unreachable or key rejected | Run `python3 host/pair.py` again; it re-checks everything. |
+| The computer does not find the device | Use a data cable. Hold **BOOT** (T-Deck: the trackball click) when you connect the cable. |
+| The phone does not show `Chirp-XXXX` | Read the name and the password on the device screen. Use 2.4 GHz. Move the phone nearer. |
+| The phone says "no internet" | Stay connected. The setup network has no internet. |
+| The setup page does not open | Go to any `http://` address. Do not use `https://`. |
+| The device shows "WiFi failed" | Check the password. Use a 2.4 GHz network. Go to **Setup**, select **Set up on phone**, and add or correct the network. |
+| Venice: "Bad API key" or "Out of credit" | Type the key again on the setup page, or add credit to your Venice account. |
+| Hermes: "unreachable" or "key rejected" | Run `python3 host/pair.py` again. It checks all connections. |
 
-## Documentation
+More problems and their solutions are in [Troubleshooting](docs/troubleshooting.md).
 
-- [Flashing](docs/flashing.md): browser installer, PlatformIO, T-Deck USB-JTAG, updating
-- [First setup on the phone](docs/first-setup.md): every setup page field, WiFi networks, setup over USB
+## More information
+
+- [Installing the firmware](docs/flashing.md)
+- [First setup on the phone](docs/first-setup.md)
 - [Venice setup](docs/setup-venice.md) and [Hermes setup](docs/setup-hermes.md)
-- [Using chirp](docs/using.md): tabs, views, characters, power and battery
-- [How a turn works](docs/how-it-works.md)
-- [Troubleshooting](docs/troubleshooting.md) and known limits
-- [Security notes](docs/security.md)
-- [Development](docs/development.md): building, tests, repository layout
+- [Using chirp](docs/using.md)
+- [How a question is answered](docs/how-it-works.md)
+- [Troubleshooting and known limits](docs/troubleshooting.md)
+- [Updating](docs/updating.md)
+- [Security](docs/security.md)
+- [Development](docs/development.md)
 
 ## License
 
-The four bundled fonts (Atkinson Hyperlegible, Inter, Paper Mono, Terminus)
-are under the SIL Open Font License 1.1; each license file sits beside the
-font data in [`firmware/src/fonts/`](firmware/src/fonts).
+The four fonts (Atkinson Hyperlegible, Inter, Paper Mono and Terminus) use the
+SIL Open Font License 1.1. Each license file is next to the font data in
+[`firmware/src/fonts/`](firmware/src/fonts).

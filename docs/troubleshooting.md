@@ -4,59 +4,48 @@
 
 | Symptom | Fix |
 |---|---|
-| No port in the installer / `pio` cannot connect | Use a data cable. Hold **BOOT** (T-Deck: the trackball click) while plugging in or tapping reset. On Linux, stop `ModemManager` (`sudo systemctl stop ModemManager`) and add your user to `dialout`. T-Deck still silent: the USB-JTAG route in [Flashing](flashing.md). |
-| Nothing happens after flashing | Unplug and replug the cable. A device with no settings shows the setup screen ([First setup](first-setup.md)). |
-| No `Chirp-XXXX` network on the phone | Look at the device screen: it shows the name and password. 2.4 GHz only; move closer. The phone may call it "no internet": stay connected. |
-| Setup page does not open | Open any plain `http://` address in the browser (not `https://`). |
-| "Refused: open the setup page again and resubmit" | The page was left open across a restart or a second setup session: reload it and save again. |
-| WiFi failed at boot | Wrong password, 5 GHz-only network, none in range, or a network with a sign-in page. Open **Setup → Set up on phone** (the screen says how) and fix or add a network. |
+| No port in the installer, or `pio` cannot connect | Use a data cable. Hold **BOOT** (T-Deck: the trackball click) while you plug the cable in or tap reset. On Linux, stop `ModemManager` (`sudo systemctl stop ModemManager`) and add your user to `dialout`. If the T-Deck stays silent, use the USB-JTAG method in [Flashing](flashing.md). |
+| Nothing happens after the flash | Unplug the cable and plug it in again. A device with no settings shows the setup screen ([First setup](first-setup.md)). |
+| No `Chirp-XXXX` network on the phone | Read the name and the password on the device screen. The network uses 2.4 GHz only. Move closer. The phone can say "no internet". Stay connected. |
+| The setup page does not open | Open any plain `http://` address in the browser. Do not use `https://`. |
+| "Refused: open the setup page again and resubmit" | The page stayed open across a restart or a second setup session. Reload the page and save again. |
+| WiFi failed at boot | The password is wrong, the network is 5 GHz only, no network is in range, or the network has a sign-in page. Open **Setup**, then *Set up on phone* (the screen tells you how). Fix the network or add a network. |
 | Venice errors | See [Venice setup](setup-venice.md#venice-problems). |
-| Hermes errors | See [Hermes setup](setup-hermes.md#hermes-problems); `python3 host/pair.py` re-checks everything. A changed address for the Hermes machine needs a re-pair. |
-| Want a clean start | A full erase wipes every setting and returns the device to its setup screen (see [Flashing](flashing.md#clean-start)). |
-| Reporting a problem | `pio device monitor -d firmware -e <board>` (115200 baud) shows the boot log (`[WiFi]`, `[SelfTest]`, `[Settings]`; never the values). |
+| Hermes errors | See [Hermes setup](setup-hermes.md#hermes-problems). Run `python3 host/pair.py` to check everything again. If the address of the Hermes machine changes, pair the device again. |
+| You want a clean start | A full erase removes every setting and returns the device to its setup screen (see [Flashing](flashing.md#clean-start)). |
+| You must report a problem | Run `pio device monitor -d firmware -e <board>` (115200 baud). It shows the boot log (`[WiFi]`, `[SelfTest]`, `[Settings]`). The log never shows the values. |
 
 ## Boot check messages
 
-At boot the device checks its connections and names the first problem it
-finds (it gives up after about 15 s at most):
+At boot, the device checks its connections and names the first problem it finds. The check stops after about 15 s at the most.
 
 | Message | Fix |
 |---|---|
-| WiFi failed (T-Embed: "side key 5x = Setup"; T-Deck: "Click 5x = Setup") | No saved network joined (wrong name or password, or none in range): Setup tab (five taps or clicks away), *Set up on phone* |
-| Hermes key rejected | Wrong API key for the agent: run `host/pair.py` again, or Setup tab, *Set up on phone* |
-| Hermes profile not found | The profile name doesn't exist on the gateway |
-| Hermes unreachable | The gateway isn't running or not reachable on the LAN (`host/pair.py` checks) |
-| Speech server unreachable | The speech server isn't running: `systemctl --user status hermes-audio-shim` |
-| Venice: *Bad API key*, *Out of credit*, *Key not allowed*, *Rate limited* | See [Venice problems](setup-venice.md#venice-problems) |
-| Venice unreachable | No internet, or Venice is down: check the WiFi has internet access |
-| Venice error | Venice answered with an unexpected error: try again later |
+| WiFi failed (T-Embed: "side key 5x = Setup"; T-Deck: "Click 5x = Setup") | No saved network joined. The name or the password is wrong, or no network is in range. Open the Setup tab (five taps or clicks), then pick *Set up on phone*. |
+| Hermes key rejected | The API key of the agent is wrong. Run `host/pair.py` again, or open the Setup tab and pick *Set up on phone*. |
+| Hermes profile not found | The profile name does not exist on the gateway. |
+| Hermes unreachable | The gateway does not run, or the LAN cannot reach it. `host/pair.py` checks this. |
+| Speech server unreachable | The speech server does not run. Run `systemctl --user status hermes-audio-shim`. |
+| Venice: *Bad API key*, *Out of credit*, *Key not allowed*, *Rate limited* | See [Venice problems](setup-venice.md#venice-problems). |
+| Venice unreachable | There is no internet, or Venice is down. Make sure the WiFi has internet access. |
+| Venice error | Venice sent an unexpected error. Try again later. |
 
-A turn that fails afterwards says why on the bottom line: *Bad API key*, *Out
-of credit*, *Key not allowed* or *Rate limited* (Venice only), *Backend not
-answering* (nothing arrived for 90 s) or *Backend unreachable*.
+If a turn fails after the boot check, the bottom line says why. These messages are possible:
+
+- *Bad API key*, *Out of credit*, *Key not allowed* or *Rate limited* (Venice only).
+- *Backend not answering*. Nothing arrived for 90 s.
+- *Backend unreachable*.
 
 ## Known limits
 
-- **Venice: internal memory.** After a Venice answer the device's free internal
-  memory falls lower than in Hermes mode. If a Venice device ever restarts by
-  itself mid-answer, send the serial log.
-- **T-Deck: thin vertical flashes.** Some menu repaints in the *Rosé Pine* dark
-  theme show one-refresh vertical flashes. It is cosmetic; another theme may
-  avoid it.
-- **T-Deck: flashing may need USB-JTAG** ([Flashing](flashing.md)).
-- **Updating from an older build** can ask for WiFi once ([Updating](updating.md)).
-- **Venice mode:** the persona is fixed, there are no server-side chats, and
-  there are no WiFi updates.
-- whisper `base` occasionally mishears very short clips.
-- An answer must finish streaming within 240 s, with no 90 s stretch without a
-  data event (tool progress counts; the gateway's keepalives don't); research
-  turns that exceed it end as "Backend not answering".
-- No wake word: voice mode listens for speech energy, and only while idle.
-- Only one chunk downloads ahead of the one playing (two PSRAM slots): a chunk
-  that synthesizes slower than the previous one plays leaves a gap. Chunk
-  sizes ramp up to avoid it, but a very long single sentence in the second
-  chunk still can.
-- The chat transcript (last 40 turns) lives in PSRAM; only the few KB of
-  bookkeeping around it use the internal heap.
-- While the answer is still streaming, the dial key can't interrupt it; it can
-  once streaming ends.
+- Venice, internal memory: After a Venice answer, the free internal memory of the device is lower than in Hermes mode. If a Venice device restarts by itself during an answer, send the serial log.
+- T-Deck, thin vertical flashes: Some menu repaints in the *Rosé Pine* dark theme show vertical flashes that last one refresh. They are cosmetic. Another theme can avoid them.
+- T-Deck, flashing: Some units need USB-JTAG ([Flashing](flashing.md)).
+- Update from an older build: The device can ask for WiFi once ([Updating](updating.md)).
+- Venice mode: The persona is fixed, there are no chats on the server, and there are no WiFi updates.
+- whisper `base` sometimes misunderstands very short clips.
+- An answer must finish streaming within 240 s. A stretch of 90 s without a data event is not allowed. Tool progress counts as a data event. The keepalives of the gateway do not count. A research turn that exceeds these limits ends as "Backend not answering".
+- There is no wake word. Voice mode listens for speech energy, and only while the device is idle.
+- Only one chunk downloads ahead of the chunk that plays (two PSRAM slots). If a chunk takes more time to synthesize than the previous chunk takes to play, a gap occurs. The chunk sizes increase to prevent this. A very long single sentence in the second chunk can still cause a gap.
+- The chat transcript (the last 40 turns) is in PSRAM. Only a few KB of bookkeeping around it use the internal heap.
+- The talk key cannot interrupt an answer while the answer is still streaming. It can interrupt the answer after the streaming ends.

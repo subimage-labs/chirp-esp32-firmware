@@ -322,8 +322,9 @@ static void veniceHostForms() {
     CHECK(mergeSettings(stored(), veniceForm("vkey1", "https://venice.example:8443/"),
                         out) == nullptr);
     CHECK(out.venice == "https://venice.example:8443");
-    CHECK(mergeSettings(stored(), veniceForm("vkey1", "http://bench.test:9000"), out) == nullptr);
-    CHECK(out.venice == "http://bench.test:9000");             // explicit bench-local http
+    const char* httpError = mergeSettings(stored(), veniceForm("vkey1", "http://bench.test:9000"), out);
+    CHECK(httpError && std::strcmp(httpError,
+          "Venice needs https:// here: http:// would send your API key unencrypted") == 0);
     for (const char* bad : {"ftp://x", "box/p", "bad host", "https://box:0"})
         CHECK(mergeSettings(stored(), veniceForm("vkey1", bad), out) != nullptr);
 }
@@ -709,7 +710,56 @@ static void networkValidationMessages() {
     CHECK(!settingsUsable(empty));
 }
 
+static void venicePlainHttpPolicy() {
+    // Release builds require HTTPS when the resulting backend is Venice.
+    for (const char* host : {"localhost", "x.test", "bench.test", "BENCH.TeSt",
+                             "nested.bench.test", "api.venice.ai", "example.com",
+                             "notest", "test", "x.test.example.com", "x.local", "X.LoCaL",
+                             "198.51.100.7"}) {
+        for (const char* backend : {"venice", "local"}) {
+            SettingsInput in = form("Home", "", "gw");
+            in.backendSet = true;
+            in.backend = backend;
+            in.veniceKey = "vkey1";
+            in.venice = std::string("http://") + host + ":80";
+            DeviceSettings out;
+            if (in.backend == "venice") {
+                CHECK(errorIs(mergeSettings(stored(), in, out),
+                              "Venice needs https:// here: http:// would send your API key unencrypted"));
+            } else {
+                CHECK(mergeSettings(stored(), in, out) == nullptr);
+                CHECK(out.venice == in.venice);
+            }
+            in.venice = std::string("https://") + host;
+            CHECK(mergeSettings(stored(), in, out) == nullptr);
+            CHECK(out.venice == std::string("https://") + host + ":443");
+            in.venice = host;
+            CHECK(mergeSettings(stored(), in, out) == nullptr);
+            CHECK(out.venice == std::string("https://") + host + ":443");
+        }
+        DeviceSettings s = veniceStored();
+        s.venice = std::string("http://") + host + ":80";
+        CHECK(!settingsUsable(s));
+        s.backend = "local";
+        CHECK(settingsUsable(s));
+        DeviceSettings out;
+        SettingsInput in = form("Home", "", "gw");
+        in.venice = s.venice;
+        CHECK(mergeSettings(s, in, out) == nullptr);
+        CHECK(out.venice == s.venice);
+        CHECK(errorIs(mergeSettings(s, veniceForm("", s.venice.c_str()), out),
+                      "Venice needs https:// here: http:// would send your API key unencrypted"));
+    }
+
+    DeviceSettings s = veniceStored();
+    s.venice = "https://api.venice.ai:443";
+    CHECK(settingsUsable(s));
+    s.venice = "http://bench.test:9000";
+    CHECK(!settingsUsable(s));
+}
+
 int main() {
+    venicePlainHttpPolicy();
     networkMerge();
     storedNetworkValidation();
     normalizeStoredNetworks();

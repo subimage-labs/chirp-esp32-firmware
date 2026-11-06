@@ -1,72 +1,77 @@
 # First setup on the phone
 
-A device with no saved settings (new, or erased) starts its own WiFi network
-instead of the app. The screen shows the network name `Chirp-XXXX`, a
-one-time 12-character password and a QR code.
+A device with no saved settings starts its own WiFi network. This applies to a new device and to an erased device. The device does not start the app. The screen shows these items:
 
-Hermes route with the device plugged into the Hermes machine: you can skip the
-phone. `pair.py` does the whole setup over the cable; see
-[Hermes setup](setup-hermes.md).
+- the network name `Chirp-XXXX`
+- a one-time password of 12 characters
+- a QR code
 
-1. On the phone, join `Chirp-XXXX`: scan the screen's QR code (it joins the
-   network for you) or type the password. If the phone warns that the network
-   has no internet, stay connected.
-2. The setup page opens by itself. If it does not, open any plain `http://`
-   address in the phone's browser (not `https://`): every address lands on
-   the page.
-3. **WiFi:** pick your network from the nearby list (or type its name), type
-   the password; tick *Open network* if it has none.
-4. **Backend:** choose **Venice** or **Hermes on my network**, then follow
-   [Venice setup](setup-venice.md) or [Hermes setup](setup-hermes.md).
-5. Tap **Save and restart**. The page says *Saved*; the device screen says
-   *All set! Restarting*. Reconnect the phone to its usual WiFi. The device
-   joins your network and checks its backend ("Checking Venice" or "Checking
-   Hermes"); the chat screen with the talk hint means it is ready.
+If the device is plugged into the Hermes machine, you can skip the phone. `pair.py` does the whole setup over the cable. See [Hermes setup](setup-hermes.md).
 
-The setup network stays open until something is saved. Once the device has
-settings, a setup session you start from the menu ends by itself after 10
-minutes without a phone (15 at most).
+## Steps
 
-## Every field on the setup page
+1. On the phone, join the network `Chirp-XXXX`. Scan the QR code on the screen to join, or type the password.
+2. If the phone warns that the network has no internet, stay connected.
+3. Wait for the setup page to open. If it does not open, open any plain `http://` address in the phone browser. Do not use `https://`. Every address leads to the setup page.
+4. Under **WiFi**, pick your network from the list of nearby networks, or type its name.
+5. Type the WiFi password. If the network has no password, tick *Open network*.
+6. Under **Backend**, choose **Venice** or **Hermes on my network**.
+7. Follow [Venice setup](setup-venice.md) or [Hermes setup](setup-hermes.md).
+8. Tap **Save and restart**. The setup page shows *Saved*. The device screen shows *All set! Restarting*.
+9. Connect the phone to its usual WiFi again.
 
-| Field | |
+The device joins your network and checks its backend. The bottom line shows "Checking Venice" or "Checking Hermes". The device is ready when the chat screen shows the talk hint.
+
+The setup network stays open until the device saves a settings change. After the device has settings, you can start a setup session from the menu. The session ends after 10 minutes without a phone. It ends after 15 minutes at the most.
+
+## Fields on the setup page
+
+| Field | Description |
 |---|---|
-| WiFi: saved networks | the networks chirp remembers (up to 5, names only, never passwords): tick *Forget* to remove one. chirp joins the strongest saved network in range, at boot and whenever it reconnects, so walking from one to another just works |
-| WiFi: add a network / password | adds a network to that list (blank name = add none; nearby networks are offered; tick *Open network* for one without a password; a name already saved is edited, a blank password keeps its saved one). The 6th network pushes out the one joined longest ago |
-| Backend | **Hermes on my network** or **Venice** (cloud). Switching keeps the other mode's settings stored |
-| Venice API key | Venice only. Write-only: a blank box keeps the stored key. Tick *Show password and key* to check what you typed |
-| Venice host (advanced) | Venice only; blank = `api.venice.ai:443`. A different host drops the stored key (a key belongs to the host that issued it) |
-| Hermes host | Hermes only: your Hermes machine as `host` or `host:port` (default port 8642) |
-| Agents | Hermes only: the agents already on the device: pick the one to *use*, tick *remove* to drop one |
-| Add an agent: profile name + API key | Hermes only: a profile that **already exists** on Hermes and its `API_SERVER_KEY` (in `~/.hermes/profiles/<name>/.env`; the default profile's is in `~/.hermes/.env`). Blank name = the default profile. Typing a new name does not create a profile: `host/pair.py --create NAME` does, and sends it here |
-| Audio shim host | Hermes only; optional; blank = the Hermes host, port 8643 |
+| WiFi: saved networks | The networks that chirp remembers. The list holds up to 5 networks. It shows names only, never passwords. Tick *Forget* to remove a network. chirp joins the strongest saved network in range, at boot and at each reconnect. This lets you move from one network to another. |
+| WiFi: add a network, password | Adds a network to the list. A blank name adds no network. The page offers the nearby networks. Tick *Open network* for a network without a password. A name that is already saved is edited. A blank password keeps the saved password. The 6th network replaces the network that the device joined longest ago. |
+| Backend | **Hermes on my network** or **Venice** (cloud). A switch keeps the stored settings of the other mode. |
+| Venice API key | Venice only. The box is write-only. A blank box keeps the stored key. Tick *Show password and key* to check your input. |
+| Venice host (advanced) | Venice only. A blank box means `api.venice.ai:443`. A different host removes the stored key, because a key belongs to the host that issued it. The setup page refuses a host that starts with `http://`. |
+| Hermes host | Hermes only. The Hermes machine as `host` or `host:port`. The default port is 8642. |
+| Agents | Hermes only. The list of agents that are on the device. Pick the agent to *use*. Tick *remove* to remove an agent. |
+| Add an agent: profile name, API key | Hermes only. The name of a profile that **already exists** on Hermes, and its `API_SERVER_KEY`. The key is in `~/.hermes/profiles/<name>/.env`. The key of the default profile is in `~/.hermes/.env`. A blank name means the default profile. A new name does not create a profile. `host/pair.py --create NAME` creates a profile and sends it to the device. |
+| Audio shim host | Hermes only. Optional. A blank box means the Hermes host with port 8643. |
 
-Settings are stored on the device and survive firmware updates. To change
-them later, open the **Setup** tab (five side-key taps on the T-Embed, five
-ball clicks on the T-Deck) and pick *Set up on phone*. Saved values are filled
-in; the password and keys are never shown again, and leaving the password or a
-key blank keeps it. The side key (T-Deck: Backspace) leaves setup without
-changes.
+The device stores the settings, and they stay after a firmware update. To change them later, do these steps:
+
+1. Open the **Setup** tab. Tap the side key five times (T-Deck: click the ball five times).
+2. Pick *Set up on phone*.
+
+The page shows the saved values. The page never shows the password or the keys again. A blank password or key box keeps the saved value. To leave setup without a change, press the side key (T-Deck: Backspace).
 
 ## WiFi networks
 
-The device keeps up to 5 networks and joins the strongest saved one in range,
-at boot and whenever it reconnects. To add one, open **Setup → Set up on
-phone** and add it on the page (the saved ones are listed; the 6th pushes out
-the one joined longest ago). To remove one, tick *Forget* next to it on that
-page, or send `settings {"forgetWifi":"NETWORK NAME"}` over serial
-(`pio device monitor -d firmware -e <board>`, 115200 baud).
+The device keeps up to 5 networks. It joins the strongest saved network in range, at boot and at each reconnect.
 
-## Without a phone (USB)
+To add a network:
 
-Copy `firmware/device.env.example` to `firmware/device.env` (git-ignored), fill
-in the values for one route (comments in the file say which), plug the device
-in and run:
+1. Open **Setup**, then pick *Set up on phone*.
+2. Add the network on the setup page. The page lists the saved networks.
+
+The 6th network replaces the network that the device joined longest ago.
+
+To remove a network, use one of these methods:
+
+- Tick *Forget* next to the network on the setup page.
+- Send `settings {"forgetWifi":"NETWORK NAME"}` over serial. Use `pio device monitor -d firmware -e <board>` at 115200 baud.
+
+## Setup without a phone (USB)
+
+1. Copy `firmware/device.env.example` to `firmware/device.env`. Git ignores this file.
+2. Fill in the values for one route. The comments in the file say which values to use.
+3. Plug the device in.
+4. Run this command:
 
 ```sh
 python3 host/provision.py [--port /dev/ttyACM0]
 ```
 
-It sends the settings over serial, never prints them, and the device restarts.
-On Linux your user must be allowed to use the serial port (group `dialout` on
-most distributions). `host/provision.py` is Linux-only.
+The script sends the settings over serial and never prints them. The device restarts.
+
+On Linux, your user must have access to the serial port. On most distributions, add the user to the group `dialout`. `host/provision.py` runs on Linux only.

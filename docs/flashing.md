@@ -1,99 +1,91 @@
 # Flashing
 
-You flash the device once over USB. After that, settings are kept across
-updates (see [Updating](updating.md)).
+Flash the device once over USB. After that, the settings stay across updates. See [Updating](updating.md).
 
 ## What you need
 
-- A **T-Embed CC1101 Plus** or a **T-Deck**, and a USB-C cable that carries
-  data (charge-only cables do not work).
-- Chrome or Edge on a desktop for the T-Embed's browser installer. For the
-  T-Deck, or if you prefer to build yourself: Git and
-  [PlatformIO](https://platformio.org/install/cli) (`pip install platformio`;
-  releases are built with Python 3.11, so use 3.10–3.12 if your system Python
-  is much newer). The first build downloads the ESP32 toolchain and libraries,
-  so it needs internet and a few minutes.
-- Access to the repository and its `tdeck-venice` branch, which holds the
-  T-Deck and Venice support:
+- A **T-Embed CC1101 Plus** or a **T-Deck**.
+- A USB-C cable that carries data. A charge-only cable does not work.
+- For the T-Embed browser installer: Chrome or Edge on a desktop computer.
+- For the T-Deck, or to build the firmware yourself: Git and [PlatformIO](https://platformio.org/install/cli). Install PlatformIO with `pip install platformio`.
+- Releases are built with Python 3.11. If your system Python is much newer, use Python 3.10 to 3.12 for PlatformIO.
+- Internet access. The first build downloads the ESP32 toolchain and the libraries. It takes a few minutes.
+- Access to the repository and its `tdeck-venice` branch. This branch holds the T-Deck and Venice support.
+
+Clone the branch:
 
 ```sh
 git clone --branch tdeck-venice <repo-url> chirp-esp32-firmware
 cd chirp-esp32-firmware
 ```
 
-For the Hermes route, clone it on the Hermes machine.
+For the Hermes route, clone the repository on the Hermes machine.
 
 ## T-Embed from the browser (no build tools)
 
-Download the `flasher` artifact of the latest **firmware-release** run
-(GitHub → Actions), unpack it and serve it on your desktop:
+1. Download the `flasher` artifact of the latest **firmware-release** run (GitHub, then Actions).
+2. Unpack the artifact and serve it on your desktop computer:
 
-```sh
-unzip flasher.zip -d flasher && cd flasher && python3 -m http.server   # open http://localhost:8000
-```
+   ```sh
+   unzip flasher.zip -d flasher && cd flasher && python3 -m http.server   # open http://localhost:8000
+   ```
 
-In Chrome or Edge, plug the device in, click **Install** and pick its port.
-If no port shows up, hold **BOOT** while plugging the cable in. Leave **Erase
-device** unticked: erasing wipes the saved settings (a new device does not
-need it). The installer carries **T-Embed images only**, and its builds do not
-update over WiFi (see [Updating](updating.md)).
+3. In Chrome or Edge, plug the device in.
+4. Click **Install**.
+5. Pick the port of the device. If no port shows, hold **BOOT** and plug the cable in again.
+6. Do not tick **Erase device**. An erase removes the saved settings. A new device does not need an erase.
+
+The installer has T-Embed images only. Its builds do not update over WiFi. See [Updating](updating.md).
 
 ## Either board, with PlatformIO
 
-Always name the board; without `-e`, `upload` flashes every board's image in
-turn:
+Always name the board. Without `-e`, `upload` flashes the image of every board in turn.
 
 ```sh
 pio run -d firmware -e t-embed-cc1101 -t upload     # T-Embed CC1101 Plus
 pio run -d firmware -e t-deck -t upload             # T-Deck
 ```
 
-The port is found automatically. Add `--upload-port /dev/ttyACM1` if it is
-not (the name changes after a reset). If the upload cannot connect, put the
-board in download mode:
+PlatformIO finds the port by itself. If it does not, add `--upload-port /dev/ttyACM1`. The port name changes after a reset.
 
-- **T-Embed:** hold **BOOT** while plugging the cable in.
-- **T-Deck:** hold the trackball click, tap the board's reset button, release.
-  The screen stays dark.
+If the upload cannot connect, put the board in download mode:
 
-On Linux, stop `ModemManager` while you flash (`sudo systemctl stop
-ModemManager`) and make sure your user may use the serial port (group
-`dialout` on most distributions).
+- **T-Embed:** hold **BOOT** and plug the cable in.
+- **T-Deck:** hold the trackball click, tap the reset button of the board, then release the click. The screen stays dark.
 
-After flashing, a device with no settings restarts into its **setup screen**:
-continue with [First setup](first-setup.md).
+On Linux, do these steps before you flash:
 
-## T-Deck that will not flash over serial
+1. Stop `ModemManager`: `sudo systemctl stop ModemManager`.
+2. Make sure your user can use the serial port. On most distributions, add the user to the group `dialout`.
 
-On some T-Deck units the ESP32-S3 ROM loader never answers `esptool` or Web
-Serial, in any download mode. If yours behaves that way, flash over USB-JTAG
-with Espressif's `openocd-esp32`. The T-Deck's USB port is the chip's built-in
-USB-JTAG interface (USB ID `303a:1001`), so no extra hardware is needed.
+After the flash, a device with no settings restarts into its **setup screen**. Continue with [First setup](first-setup.md).
 
-1. **Install `openocd-esp32`**, Espressif's OpenOCD build with ESP32-S3
-   support.
-2. **Let your user open the USB device (Linux).** Create
-   `/etc/udev/rules.d/60-esp32-jtag.rules` with:
+## T-Deck that does not flash over serial
+
+On some T-Deck units, the ESP32-S3 ROM loader never answers `esptool` or Web Serial. This is true in every download mode. If your unit does this, flash over USB-JTAG with `openocd-esp32` from Espressif.
+
+The USB port of the T-Deck is the built-in USB-JTAG interface of the chip (USB ID `303a:1001`). You do not need extra hardware.
+
+1. Install `openocd-esp32`. This is the OpenOCD build from Espressif with ESP32-S3 support.
+2. On Linux, let your user open the USB device. Create `/etc/udev/rules.d/60-esp32-jtag.rules` with this line:
 
    ```
    SUBSYSTEM=="usb", ATTR{idVendor}=="303a", ATTR{idProduct}=="1001", MODE="0660", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
    ```
 
-   The `ID_MM_DEVICE_IGNORE` part keeps ModemManager from grabbing the port.
-   Reload with `sudo udevadm control --reload && sudo udevadm trigger`, then
-   replug the T-Deck.
-3. **Build the firmware** so the flash images exist:
+   The `ID_MM_DEVICE_IGNORE` setting stops ModemManager from taking the port.
+3. Reload the rules: `sudo udevadm control --reload && sudo udevadm trigger`.
+4. Plug the T-Deck in again.
+5. Build the firmware so that the flash images exist:
 
    ```sh
    pio run -d firmware -e t-deck
    ```
 
-   You need four files: `bootloader.bin`, `partitions.bin` and `firmware.bin`
-   in `firmware/.pio/build/t-deck/`, and `boot_app0.bin` in
-   `framework-arduinoespressif32/tools/partitions/` inside your PlatformIO
-   packages folder (`~/.platformio/packages/` by default).
-4. **Flash the four images.** Run this from the folder that holds them (or use
-   full paths):
+6. Find the four image files:
+   - `bootloader.bin`, `partitions.bin` and `firmware.bin` are in `firmware/.pio/build/t-deck/`.
+   - `boot_app0.bin` is in `framework-arduinoespressif32/tools/partitions/`, inside your PlatformIO packages folder. The default folder is `~/.platformio/packages/`.
+7. Flash the four images. Run the command in the folder that holds them, or use full paths:
 
    ```sh
    openocd -f interface/esp_usb_jtag.cfg \
@@ -106,16 +98,13 @@ USB-JTAG interface (USB ID `303a:1001`), so no extra hardware is needed.
          reset run; shutdown"
    ```
 
-   If two boards are plugged in, pin the T-Deck's USB location so the other
-   board is never touched: add `-c 'adapter usb location <bus>-<port>'`
-   before the `-c 'set ESP32S3 1'` option (find the bus and port with
-   `lsusb -t`).
+If two boards are plugged in, pin the USB location of the T-Deck. Then OpenOCD does not touch the other board. Add `-c 'adapter usb location <bus>-<port>'` before the `-c 'set ESP32S3 1'` option. Use `lsusb -t` to find the bus and the port.
 
-The device restarts into its setup screen (or its chat, if it already has
-settings).
+The device restarts into its setup screen. If it already has settings, it restarts into the chat.
 
 ## Clean start
 
-A full erase wipes every setting and returns the device to its setup screen:
-tick *Erase device* in the browser installer, or run
-`pio run -d firmware -e <board> -t erase`.
+A full erase removes every setting and returns the device to its setup screen. Use one of these methods:
+
+- Tick *Erase device* in the browser installer.
+- Run `pio run -d firmware -e <board> -t erase`.

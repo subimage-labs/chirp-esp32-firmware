@@ -1,39 +1,34 @@
 # Security notes
 
-No secret is compiled into the firmware or tracked in git. Builds carry no
-settings.
+No secret is compiled into the firmware or tracked in git. Builds carry no settings.
 
 ## On the device
 
-WiFi credentials, the Hermes or Venice API key and the hosts live in the
-ESP32's settings partition (NVS). That is plain flash, so anyone with the unit
-and a USB cable can read them back. Use a Venice key made for this device and
-revoke it if the device is lost.
+The device stores these items in the settings partition (NVS) of the ESP32:
 
-The setup network is WPA2 with a fresh 12-character password each time. The
-setup form needs a token that only that run's page carries, and refuses a
-foreign `Origin`. A setup session opened from the menu ends after 15 minutes at
-most.
+- the WiFi credentials
+- the Hermes or Venice API key
+- the hosts
 
-On the Hermes machine, the key lives in the profile's `.env`.
-`firmware/device.env` (optional, for `provision.py`) is git-ignored.
+This partition is plain flash. A person who has the device and a USB cable can read these items. Make a Venice key for this device only. Revoke the key if you lose the device.
+
+The setup network uses WPA2. It has a new password of 12 characters each time. The setup form needs a token. Only the page of that run carries the token. The form refuses a foreign `Origin`. A setup session that you open from the menu ends after 15 minutes at the most.
+
+On the Hermes machine, the key is in the `.env` file of the profile. `firmware/device.env` is optional and is used by `provision.py`. Git ignores this file.
 
 ## Venice route
 
-Your voice and text go to Venice over HTTPS. The Venice key is sent only over
-https, to the configured host (`api.venice.ai` by default); the setup page
-refuses a plain `http://` host unless it is a local one. Certificates are
-checked against a pinned root certificate, but their expiry dates are not
-checked by this build.
+The device sends your voice and text to Venice over HTTPS.
+
+- The device sends the Venice key only over https. It sends the key to the configured host. The default host is `api.venice.ai`.
+- The setup page refuses a Venice host that starts with `http://`. This applies to every host.
+- Only developer bench builds accept `http://`, for a local test server.
+- The device checks each certificate against a pinned root certificate. This build does not check the expiry dates of certificates.
 
 ## Hermes route
 
-**Keys travel in the clear.** The device talks to the Hermes gateway over plain
-HTTP on your LAN and sends the agent's API key with every request, so anyone
-who can capture traffic on that network can read it. Limit the gateway port
-(8642) with a firewall rule on the Hermes machine so only the device's address
-can reach it. TLS with a certificate pinned on the device would close this; it
-is not built yet.
+**The keys travel in the clear.** The device talks to the Hermes gateway over plain HTTP on your LAN. It sends the API key of the agent with every request. A person who can capture traffic on that network can read the key.
 
-Pairing over USB (`host/pair.py`) sends no key over WiFi or to a screen. The QR
-code from `--no-usb` carries the profile's API key: don't share it.
+Limit access to the gateway port (8642) with a firewall rule on the Hermes machine. Allow only the address of the device. TLS with a certificate pinned on the device would close this gap. This is not built yet.
+
+Pairing over USB (`host/pair.py`) sends no key over WiFi or to a screen. The QR code from `--no-usb` carries the API key of the profile. Do not share the code.

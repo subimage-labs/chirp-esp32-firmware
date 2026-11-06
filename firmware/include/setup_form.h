@@ -346,6 +346,14 @@ inline const char* mergeSettings(const DeviceSettings& cur, const SettingsInput&
         if (!parseHostPort(given.empty() ? std::string(VENICE_HOST_DEFAULT) : given,
                            VENICE_PORT_DEFAULT, vp))
             return "Venice host must look like host, host:port or https://host:port";
+#ifndef BENCH_CMDS
+        // Release builds send the Venice key over https only. The rule holds
+        // where the key is used, venice mode: a local-mode device keeps an old
+        // unused http:// host and stays usable. Developer bench builds accept
+        // http:// for the local test backend (host/venice_mock.py).
+        if (r.backend == "venice" && vp.scheme == Scheme::Http)
+            return "Venice needs https:// here: http:// would send your API key unencrypted";
+#endif
         r.venice = hostSchemeString(vp);
     }
     {
