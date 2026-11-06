@@ -72,25 +72,32 @@ During setup you pick one of two backends.
 - For Hermes: a Linux computer. See [Hermes setup](docs/setup-hermes.md).
 - On your computer: Git and [PlatformIO](https://platformio.org/install/cli)
   (`pip install platformio`). For the T-Embed, you can use the browser
-  installer in Chrome or Edge instead.
+  installer in Chrome or Edge instead. For the T-Deck, also `openocd-esp32`
+  from Espressif.
 
 ### 2. Install the firmware
 
-Get the code, connect the device with the USB cable, and run the command for
-your device:
+Get the code and connect the device with the USB cable.
 
 ```sh
 git clone <repo-url> chirp-esp32-firmware
 cd chirp-esp32-firmware
-pio run -d firmware -e t-embed-cc1101 -t upload     # T-Embed CC1101 Plus
-pio run -d firmware -e t-deck -t upload             # T-Deck
+```
+
+**T-Embed CC1101 Plus:** run this command.
+
+```sh
+pio run -d firmware -e t-embed-cc1101 -t upload
 ```
 
 Always give the device name with `-e`. Without it, PlatformIO installs the
-firmware of every device, one after the other.
+firmware of every device, one after the other. For the browser installer, see
+[Installing the firmware](docs/flashing.md).
 
-For the browser installer, and for a T-Deck that does not accept the upload,
-see [Installing the firmware](docs/flashing.md).
+**T-Deck:** its serial loader does not accept the upload. Build with
+`pio run -d firmware -e t-deck`, then flash over its USB-JTAG port with
+OpenOCD. Follow
+[T-Deck that does not flash over serial](docs/flashing.md#t-deck-that-does-not-flash-over-serial).
 
 ### 3. Set up the device from your phone
 
@@ -150,7 +157,7 @@ All controls and screens are in [Using chirp](docs/using.md).
 
 | Problem | What to do |
 |---|---|
-| The computer does not find the device | Use a data cable. Hold **BOOT** (T-Deck: the trackball click) when you connect the cable. |
+| The computer does not find the device | Use a data cable. T-Embed: hold **BOOT** when you connect the cable. T-Deck: check the udev rule in [the USB-JTAG steps](docs/flashing.md#t-deck-that-does-not-flash-over-serial). |
 | The phone does not show `Chirp-XXXX` | Read the name and the password on the device screen. Use 2.4 GHz. Move the phone nearer. |
 | The phone says "no internet" | Stay connected. The setup network has no internet. |
 | The setup page does not open | Go to any `http://` address. Do not use `https://`. |
