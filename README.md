@@ -94,10 +94,9 @@ Always give the device name with `-e`. Without it, PlatformIO installs the
 firmware of every device, one after the other. For the browser installer, see
 [Installing the firmware](docs/flashing.md).
 
-**T-Deck:** its serial loader does not accept the upload. Build with
+**T-Deck:** its serial loader does not accept an upload. Build with
 `pio run -d firmware -e t-deck`, then flash over its USB-JTAG port with
-OpenOCD. Follow
-[T-Deck that does not flash over serial](docs/flashing.md#t-deck-that-does-not-flash-over-serial).
+OpenOCD. Follow [T-Deck over USB-JTAG](docs/flashing.md#t-deck-over-usb-jtag).
 
 ### 3. Set up the device from your phone
 
@@ -157,7 +156,7 @@ All controls and screens are in [Using chirp](docs/using.md).
 
 | Problem | What to do |
 |---|---|
-| The computer does not find the device | Use a data cable. T-Embed: hold **BOOT** when you connect the cable. T-Deck: check the udev rule in [the USB-JTAG steps](docs/flashing.md#t-deck-that-does-not-flash-over-serial). |
+| The computer does not find the device | Use a data cable. T-Embed: hold **BOOT** when you connect the cable. T-Deck: check the udev rule in [T-Deck over USB-JTAG](docs/flashing.md#t-deck-over-usb-jtag). |
 | The phone does not show `Chirp-XXXX` | Read the name and the password on the device screen. Use 2.4 GHz. Move the phone nearer. |
 | The phone says "no internet" | Stay connected. The setup network has no internet. |
 | The setup page does not open | Go to any `http://` address. Do not use `https://`. |

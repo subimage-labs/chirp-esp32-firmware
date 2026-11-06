@@ -4,7 +4,7 @@
 
 | Symptom | Fix |
 |---|---|
-| No port in the installer, or `pio` cannot connect | Use a data cable. Hold **BOOT** (T-Deck: the trackball click) while you plug the cable in or tap reset. On Linux, stop `ModemManager` (`sudo systemctl stop ModemManager`) and add your user to `dialout`. If the T-Deck stays silent, use the USB-JTAG method in [Flashing](flashing.md). |
+| No port in the installer, or `pio` cannot connect | Use a data cable. T-Embed: hold **BOOT** while you plug the cable in or tap reset. On Linux, stop `ModemManager` (`sudo systemctl stop ModemManager`) and add your user to `dialout`. The T-Deck never accepts a serial upload: use [T-Deck over USB-JTAG](flashing.md#t-deck-over-usb-jtag). |
 | Nothing happens after the flash | Unplug the cable and plug it in again. A device with no settings shows the setup screen ([First setup](first-setup.md)). |
 | No `Chirp-XXXX` network on the phone | Read the name and the password on the device screen. The network uses 2.4 GHz only. Move closer. The phone can say "no internet". Stay connected. |
 | The setup page does not open | Open any plain `http://` address in the browser. Do not use `https://`. |
@@ -40,7 +40,7 @@ If a turn fails after the boot check, the bottom line says why. These messages a
 
 - Venice, internal memory: After a Venice answer, the free internal memory of the device is lower than in Hermes mode. If a Venice device restarts by itself during an answer, send the serial log.
 - T-Deck, thin vertical flashes: Some menu repaints in the *Rosé Pine* dark theme show vertical flashes that last one refresh. They are cosmetic. Another theme can avoid them.
-- T-Deck, flashing: Some units need USB-JTAG ([Flashing](flashing.md)).
+- T-Deck, flashing: The T-Deck flashes over USB-JTAG only ([Flashing](flashing.md#t-deck-over-usb-jtag)). It has no tested full-erase method yet.
 - Update from an older build: The device can ask for WiFi once ([Updating](updating.md)).
 - Venice mode: The persona is fixed, there are no chats on the server, and there are no WiFi updates.
 - whisper `base` sometimes misunderstands very short clips.

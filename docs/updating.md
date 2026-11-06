@@ -2,7 +2,7 @@
 
 ## Over USB
 
-Flash the device again in the same way. Use the browser installer or `pio run -d firmware -e <board> -t upload`. See [Flashing](flashing.md). Do not erase the device.
+Flash the device again in the same way. For the T-Embed, use the browser installer or `pio run -d firmware -e t-embed-cc1101 -t upload`. For the T-Deck, use [USB-JTAG](flashing.md#t-deck-over-usb-jtag). Do not erase the device.
 
 The WiFi networks, the keys, the agents, the Venice key, the voice, the theme and the font are in a separate settings partition. An upload keeps this partition.
 

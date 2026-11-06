@@ -7,7 +7,8 @@ Flash the device once over USB. After that, the settings stay across updates. Se
 - A **T-Embed CC1101 Plus** or a **T-Deck**.
 - A USB-C cable that carries data. A charge-only cable does not work.
 - For the T-Embed browser installer: Chrome or Edge on a desktop computer.
-- For the T-Deck, or to build the firmware yourself: Git and [PlatformIO](https://platformio.org/install/cli). Install PlatformIO with `pip install platformio`.
+- To build the firmware yourself, and for the T-Deck: Git and [PlatformIO](https://platformio.org/install/cli). Install PlatformIO with `pip install platformio`.
+- For the T-Deck: `openocd-esp32` from Espressif. See [T-Deck over USB-JTAG](#t-deck-over-usb-jtag).
 - Releases are built with Python 3.11. If your system Python is much newer, use Python 3.10 to 3.12 for PlatformIO.
 - Internet access. The first build downloads the ESP32 toolchain and the libraries. It takes a few minutes.
 - Access to the repository and its `tdeck-venice` branch. This branch holds the T-Deck and Venice support.
@@ -37,21 +38,17 @@ For the Hermes route, clone the repository on the Hermes machine.
 
 The installer has T-Embed images only. Its builds do not update over WiFi. See [Updating](updating.md).
 
-## Either board, with PlatformIO
+## T-Embed with PlatformIO
 
 Always name the board. Without `-e`, `upload` flashes the image of every board in turn.
 
 ```sh
-pio run -d firmware -e t-embed-cc1101 -t upload     # T-Embed CC1101 Plus
-pio run -d firmware -e t-deck -t upload             # T-Deck
+pio run -d firmware -e t-embed-cc1101 -t upload
 ```
 
 PlatformIO finds the port by itself. If it does not, add `--upload-port /dev/ttyACM1`. The port name changes after a reset.
 
-If the upload cannot connect, put the board in download mode:
-
-- **T-Embed:** hold **BOOT** and plug the cable in.
-- **T-Deck:** hold the trackball click, tap the reset button of the board, then release the click. The screen stays dark.
+If the upload cannot connect, put the board in download mode: hold **BOOT** and plug the cable in.
 
 On Linux, do these steps before you flash:
 
@@ -60,9 +57,9 @@ On Linux, do these steps before you flash:
 
 After the flash, a device with no settings restarts into its **setup screen**. Continue with [First setup](first-setup.md).
 
-## T-Deck that does not flash over serial
+## T-Deck over USB-JTAG
 
-On some T-Deck units, the ESP32-S3 ROM loader never answers `esptool` or Web Serial. This is true in every download mode. If your unit does this, flash over USB-JTAG with `openocd-esp32` from Espressif.
+The ESP32-S3 ROM loader of the T-Deck never answers `esptool` or Web Serial, in any download mode. So `pio ... -t upload` and the browser installer do not work on it. Flash the T-Deck over USB-JTAG with `openocd-esp32` from Espressif.
 
 The USB port of the T-Deck is the built-in USB-JTAG interface of the chip (USB ID `303a:1001`). You do not need extra hardware.
 
@@ -104,7 +101,9 @@ The device restarts into its setup screen. If it already has settings, it restar
 
 ## Clean start
 
-A full erase removes every setting and returns the device to its setup screen. Use one of these methods:
+A full erase removes every setting and returns the device to its setup screen. On the T-Embed, use one of these methods:
 
 - Tick *Erase device* in the browser installer.
-- Run `pio run -d firmware -e <board> -t erase`.
+- Run `pio run -d firmware -e t-embed-cc1101 -t erase`.
+
+The T-Deck has no tested full-erase method yet.

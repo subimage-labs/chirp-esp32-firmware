@@ -7,8 +7,8 @@ Contributors must also read [AGENTS.md](../AGENTS.md).
 The firmware uses PlatformIO (`espressif32@6.13.0`). Use these commands:
 
 ```sh
-pio run -d firmware -e t-deck                                      # build (or -e t-embed-cc1101)
-pio run -d firmware -e t-deck -t upload --upload-port /dev/ttyACM1 # flash (always name the board)
+pio run -d firmware -e t-embed-cc1101                              # build (or -e t-deck)
+pio run -d firmware -e t-embed-cc1101 -t upload --upload-port /dev/ttyACM1 # flash the T-Embed (always name the board)
 firmware/test/host/run.sh                                          # host tests
 ```
 
@@ -37,7 +37,7 @@ A push of a `v*` tag runs `.github/workflows/firmware-release.yml`. The workflow
 - It attaches the four **T-Embed** flash images to the GitHub Release.
 - It publishes a `flasher` artifact. The artifact holds the T-Embed installer page and the images. Any HTTPS static host can serve it.
 
-The workflow does not publish T-Deck images. Flash the T-Deck with PlatformIO.
+The workflow does not publish T-Deck images. Flash the T-Deck over USB-JTAG ([T-Deck over USB-JTAG](flashing.md#t-deck-over-usb-jtag)).
 
 To serve the artifact locally, unpack it and run `python -m http.server` inside it. Web Serial needs HTTPS or localhost.
 
