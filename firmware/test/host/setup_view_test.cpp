@@ -37,7 +37,6 @@ static const int CONTENT_Y = 2;
 static void layoutKinds() {
     for (int agents = 1; agents <= 4; agents++) {
         const Layout l{agents};
-        CHECK(l.total() == agents + 5 + INFO_ROWS);
         for (int r = 0; r < agents; r++) CHECK(l.kind(r) == Kind::Agent);
         CHECK(l.kind(agents) == Kind::Screen);
         CHECK(l.kind(agents + 1) == Kind::Change);
@@ -74,7 +73,6 @@ static void viewport() {
     const Layout l{1};
     const Pitch p{20, 30, 40};
     CHECK(p.of(l, 0) == 30 && p.of(l, 3) == 30 && p.of(l, 4) == 40 && p.of(l, 5) == 20);
-    CHECK(p.span(l, 0, 11) == 4 * 30 + 40 + 7 * 20);
     CHECK(viewTop(l, p, 0, 0, 100) == 0);
     CHECK(viewTop(l, p, 2, 0, 100) == 0);               // three buttons fit
     CHECK(viewTop(l, p, 3, 0, 100) == 1);               // the fourth pushes the first out

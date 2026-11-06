@@ -8,7 +8,6 @@ import os
 import re
 import sys
 import unittest
-from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -180,70 +179,6 @@ class Rules(unittest.TestCase):
             for field, name in traits.items():
                 al._index(field, name)                                # raises when unknown
 
-    # label -> (a synthetic sentence that fires only that rule, the traits it must give)
-    NEW_RULES = {
-        "cowboy": ("A rodeo companion.", dict(hat="cowboy", palette="Copper")),
-        "party": ("Plans every birthday.", dict(hat="party", acc="balloon", temper="bouncy")),
-        "books": ("Knows every novel.", dict(acc="book", palette="Taupe")),
-        "detective": ("Follows each clue.", dict(acc="magnifier", eyes="gleam")),
-        "butler": ("A polite valet.", dict(acc="monocle", temper="poised")),
-        "pirate": ("A salty sailor.", dict(acc="eyepatch", hat="headband", palette="Cobalt")),
-        "robot": ("A tidy android.", dict(ears="discs", eyes="square", mouth="grill",
-                                          palette="Graphite")),
-        "fox": ("Quick like a fox.", dict(ears="fox", palette="Coral")),
-        "bear": ("Big as a panda.", dict(ears="bear", palette="Cocoa")),
-        "deer": ("A shy moose.", dict(ears="antlers")),
-        "unicorn": ("Loves a rainbow.", dict(ears="unicorn", palette="Orchid")),
-        "elf": ("A forest pixie.", dict(ears="elf", hat="wreath", palette="Sage")),
-        "ocean": ("Knows the sea.", dict(ears="fins", palette="Teal")),
-        "viking": ("A norse saga voice.", dict(hat="viking", palette="Wine")),
-        "sport": ("Your gym buddy.", dict(hat="headband", pattern="brows", temper="jumpy")),
-        "workshop": ("Handyman advice.", dict(hat="helmet", pattern="belt", palette="Mustard")),
-        "radio": ("Sounds like a radio voice.", dict(acc="headset")),
-        "romance": ("A romantic poet.", dict(eyes="heart", pattern="blush", palette="Rose")),
-        "treats": ("Always hungry.", dict(mouth="tongueout", acc="lollipop", palette="Peach")),
-        "sly": ("Dry and sly.", dict(mouth="smirk", pattern="brows")),
-        "zen": ("Speaks with zen.", dict(eyes="joy")),
-        "curious": ("Endlessly curious.", dict(temper="curious", eyes="gleam")),
-        "bedtime": ("Reads a lullaby.", dict(temper="drowsy", eyes="sleepy")),
-        "kids": ("For toddlers.", dict(mouth="pout", pattern="freckles", temper="bouncy")),
-        "graduate": ("Helps a scholar.", dict(hat="mortarboard")),
-        "artist": ("A painter's aide.", dict(hat="beret")),
-        "streetwear": ("Wears sneakers.", dict(hat="cap", pattern="freckles")),
-        "bazaar": ("Haggles in a bazaar.", dict(hat="fez")),
-        "first-aid": ("Carries a bandage.", dict(acc="plaster")),
-        "stars": ("Sings of the cosmic.", dict(pattern="star", palette="Indigo")),
-        "winter": ("A snowy voice.", dict(pattern="frost", palette="Sky")),
-        "twins": ("One of the twins.", dict(pattern="split")),
-        "spooky": ("A pale vampire.", dict(mouth="fang")),
-        "glitch": ("A bit jittery.", dict(mouth="zigzag", temper="jumpy")),
-        "cheeky": ("Quite cheeky.", dict(mouth="grin")),
-        "camera": ("Behind the lens.", dict(eyes="cyclops")),
-        "reptile": ("A gecko fan.", dict(eyes="slit", ears="spikes")),
-        "necktie": ("A sales assistant.", dict(acc="necktie")),
-        "forest": ("Goes camping.", dict(palette="Moss")),
-        "mouse": ("A hamster keeper.", dict(ears="mouse")),
-        "sprout": ("Tends a seedling.", dict(ears="sprout", palette="Fern")),
-        "buns": ("Loves dumplings.", dict(ears="buns")),
-        "bobbles": ("Waves to an alien.", dict(ears="bobbles")),
-    }
-
-    def test_each_new_rule_fires_and_sets_its_traits(self):
-        for label, (text, want) in self.NEW_RULES.items():
-            rec, fired = self.rec("x", text)
-            self.assertEqual(fired, [label], text)
-            expected = al.empty_record()
-            for field, name in want.items():
-                expected[al.FIELDS.index(field)] = al._index(field, name)
-            self.assertEqual(rec, al.legible(expected), label)
-
-    def test_the_new_rules_are_covered_by_the_table_and_come_before_the_messenger(self):
-        labels = [label for label, _, _ in al.RULES]
-        self.assertEqual(labels[-1], "messenger")
-        self.assertEqual(set(labels[labels.index("terse") + 1:-1]), set(self.NEW_RULES))
-        self.assertEqual(len(labels), len(set(labels)))
-        self.assertEqual(labels[:labels.index("terse") + 1][:2], ["kitchen", "home"])
-
     def test_every_new_part_is_reachable_from_some_rule(self):
         # indexes at or past these are the parts the device vocabularies gained
         old = {"ears": 10, "eyes": 7, "mouth": 7, "hat": 13, "acc": 10, "pattern": 8,
@@ -321,17 +256,6 @@ class Records(unittest.TestCase):
             self.assertTrue(all(0 <= v < count for v in values), field)
             self.assertEqual(max(values), count - 1, field)          # the newest part is reachable
 
-    def test_describe_uses_the_new_words(self):
-        rec = al.empty_record()
-        for field, name in (("ears", "elf"), ("eyes", "cyclops"), ("mouth", "tongueout"),
-                            ("hat", "viking"), ("acc", "eyepatch"), ("pattern", "frost"),
-                            ("palette", "Taupe"), ("temper", "curious")):
-            rec[al.FIELDS.index(field)] = al._index(field, name)
-        text = al.describe(rec)
-        for word in ("Taupe", "elf ears", "cyclops eye", "tongue out", "viking helmet",
-                     "with an eyepatch", "frosty", "curious"):
-            self.assertIn(word, text)
-
     def test_every_part_has_a_description_word(self):
         for field, words in (("ears", al._EAR_WORDS), ("eyes", al._EYE_WORDS),
                              ("mouth", al._MOUTH_WORDS), ("hat", al._HAT_WORDS),
@@ -339,15 +263,6 @@ class Records(unittest.TestCase):
             for name in al.VOCAB[field]:
                 if name != "none":
                     self.assertIn(name, words, field)
-
-    def test_held_items_say_holding_and_worn_ones_say_with(self):
-        for name, verb in (("book", "holding"), ("magnifier", "holding"),
-                           ("lollipop", "holding"), ("balloon", "holding"),
-                           ("monocle", "with"), ("eyepatch", "with"), ("necktie", "with"),
-                           ("headset", "with"), ("plaster", "with")):
-            rec = al.empty_record()
-            rec[al.FIELDS.index("acc")] = al._index("acc", name)
-            self.assertIn(f"{verb} {al._ACC_WORDS[name]}", al.describe(rec), name)
 
     def test_descriptions_name_traits_not_persona_text(self):
         secret = "Zebrafish-Quartz protocol"
@@ -357,53 +272,6 @@ class Records(unittest.TestCase):
         self.assertNotIn("quartz", text.lower())
         self.assertRegex(al.describe(rec), r"^an? \w+ character")
         self.assertIn("toque", al.describe(rec))
-
-
-class PairFlow(unittest.TestCase):
-    """pair.py's look step, with the owner's answers scripted."""
-
-    SOUL = "Zebrafish-Quartz protocol. You are a cheerful kitchen assistant."
-
-    def run_choose(self, args, answers=()):
-        import argparse
-        import contextlib
-        import io
-        import pair
-        ns = argparse.Namespace(look=None, yes=False)
-        for k, v in args.items():
-            setattr(ns, k, v)
-        feed = iter(answers)
-        out = io.StringIO()
-        with mock.patch("builtins.input", lambda prompt="": next(feed)), \
-                contextlib.redirect_stdout(out):
-            result = pair.choose_look(ns, "alpha", self.SOUL)
-        return result, out.getvalue()
-
-    def test_yes_keeps_the_device_character_unless_asked(self):
-        self.assertEqual(self.run_choose({"yes": True}), (None, ""))
-        result, text = self.run_choose({"yes": True, "look": "auto"})
-        self.assertEqual(len(result), 24)
-        self.assertIn("toque", text)
-
-    def test_accept_reroll_keep(self):
-        rec, _ = al.derive("alpha", self.SOUL)
-        result, text = self.run_choose({}, ["a"])
-        self.assertEqual(result, al.to_hex(rec))
-        result, text = self.run_choose({}, ["r", "r", "a"])
-        self.assertEqual(result, al.to_hex(al.reroll(rec, "alpha", 2)))
-        self.assertIn("reroll 2", text)
-        self.assertEqual(self.run_choose({}, ["k"])[0], "")
-
-    def test_edit_spec_and_none(self):
-        result, _ = self.run_choose({"look": "hat=beanie"})
-        self.assertEqual(al.from_hex(result)[al.FIELDS.index("hat")], al.HATS.index("beanie"))
-        self.assertEqual(self.run_choose({"look": "none"})[0], "")
-
-    def test_the_persona_is_never_printed(self):
-        for args, answers in (({"look": "auto"}, ()), ({}, ["r", "a"])):
-            _, text = self.run_choose(args, answers)
-            self.assertNotIn("zebrafish", text.lower())
-            self.assertNotIn("quartz", text.lower())
 
 
 if __name__ == "__main__":

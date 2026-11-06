@@ -1,5 +1,6 @@
 // Host tests for the boot self-test messages. Run: firmware/test/host/run.sh
 #include "selftest_policy.h"
+#include "venice_policy.h"
 
 #include <cstdio>
 #include <cstring>
@@ -43,7 +44,42 @@ static void precedence() {
     CHECK(is(selfTestProblem(true, 200, -1), "Speech server unreachable"));
 }
 
+static void veniceCodes() {
+    using namespace venice_policy;
+    const struct {
+        int code;
+        const char* expected;
+    } cases[] = {
+        {0, "Venice unreachable"},
+        {-1, "Venice unreachable"},
+        {-11, "Venice unreachable"},
+        {1, "Venice error"},
+        {199, "Venice error"},
+        {200, nullptr},
+        {201, "Venice error"},
+        {401, "Bad API key"},
+        {402, "Out of credit"},
+        {403, "Key not allowed"},
+        {429, "Rate limited"},
+        {404, "Venice error"},
+        {500, "Venice error"},
+    };
+    for (const auto& c : cases) {
+        const char* problem = veniceSelfTestProblem(true, c.code);
+        if (c.expected) {
+            CHECK(problem != nullptr && strcmp(problem, c.expected) == 0);
+        } else {
+            CHECK(problem == nullptr);
+        }
+
+        // Missing WiFi wins over success, mapped errors, and transport errors.
+        problem = veniceSelfTestProblem(false, c.code);
+        CHECK(problem != nullptr && strcmp(problem, "No WiFi") == 0);
+    }
+}
+
 int main() {
+    veniceCodes();
     hermesCodes();
     shimCodes();
     precedence();

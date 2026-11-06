@@ -79,7 +79,6 @@ static void sparseSamplingDoubleTap() {
         for (int k = 0; k < o.n; k++) ev.push_back(o.ev[k]);
         t += 64;
     }
-    CHECK(ev.size() == 4);
     CHECK(ev.size() == 4 && ev[0].type == InputType::EncPress &&
           ev[1].type == InputType::EncRelease && ev[2].type == InputType::EncDouble &&
           ev[3].type == InputType::EncRelease);

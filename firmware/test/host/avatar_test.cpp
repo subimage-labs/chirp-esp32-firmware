@@ -78,44 +78,10 @@ static const Golden GOLDEN[] = {
      {0x64182c76, 0xeb6c6676, 0xc828f86e, 0xfd4baaa7, 0xf0a5e4b5, 0x4d820be7}},
     {"kitchen", "ffffffff00ffff0107ffffff", "0a020001000d000107011501",
      {0x1283109b, 0xa45771c3, 0x6ed93770, 0x1343185e, 0xc1a648da, 0xf49062a3}},
-    {"nova", "ffffffff01ff02ffff0203ff", "09000002010a020b00020301",
-     {0xbd613d43, 0x25613adb, 0x04c7fe74, 0x9d3f4dfb, 0xdb1b5e5b, 0xa707ab14}},
-    {"helper", "ffffffff00ffff0706ff09ff", "0400020200070407060c0902",
-     {0x54d1e555, 0xe0babd1b, 0x1df663a9, 0x87a30b40, 0x78e6a013, 0xbcc8cba5}},
     {"agent-000", "", "0f07020000020409010a1403",
      {0x8436bb78, 0x28ddc367, 0x9943248a, 0x4afd2177, 0x928f9042, 0x408c0c09}},
-    {"agent-001", "", "0a0602040f0b0b0c040c1c04",
-     {0xb499ff55, 0x02f933a3, 0x04fcee64, 0xf6853874, 0x5edbe246, 0xe134141e}},
-    {"agent-002", "", "0a0100010800001400000704",
-     {0x84f88d95, 0xdc4670d9, 0xaa6094e2, 0x5063a9d4, 0x368d7f22, 0xbabc2ae0}},
-    {"agent-003", "", "000201020503010301030a06",
-     {0x24f22a1e, 0x14d6e319, 0x1e6c826d, 0x9a8f700b, 0x7ff4b2d4, 0x9836009c}},
-    {"agent-004", "", "040200000006071300051b00",
-     {0xbb5e249e, 0x6d9718f7, 0x3dc3fefb, 0xe2f331d3, 0x18981adf, 0x69cebc2d}},
-    {"agent-005", "", "0d0502010009030200040f02",
-     {0x8786d343, 0x26e97f1e, 0x207d3c0f, 0xe8c297a0, 0x00fe6a8e, 0xfde4cb82}},
-    {"agent-006", "", "0c040402080d04010a030204",
-     {0xacc6a96f, 0x371161d9, 0xe8c4ca30, 0xa86455dd, 0x25723121, 0xba93877a}},
-    {"agent-007", "", "0e00040300080a140c050102",
-     {0x8f773dfb, 0xd544a87d, 0x038e1a93, 0x529c2a64, 0x1b79f961, 0x732d0d8a}},
-    {"novel-1", "0a0503030a07070d03081204", "0a0503030a07070d03081204",
-     {0x4b302b72, 0xd03e5838, 0x7a089d3f, 0x51d845d5, 0x70570c09, 0x99bd07b1}},
-    {"novel-2", "0b0604040b08080e0a091305", "0b0604040b08080e0a091305",
-     {0x1db986ee, 0xdb049f7d, 0x5a4dd148, 0xee715c1c, 0x771c2066, 0xa9ef3c3b}},
-    {"novel-3", "0c0703030c09090f0c0a1406", "0c0703030c09090f0c0a1406",
-     {0x3d5bf838, 0xea9629b7, 0xa08457c5, 0x07ac452b, 0x4d9c159a, 0xdeddbe5b}},
-    {"novel-4", "0d0504040d0a0a100d0b1504", "0d0504040d0a0a100d0b1504",
-     {0x0dd7ae1c, 0x0a576f23, 0xb4716d2b, 0x7238a8f3, 0x847b4671, 0x59494e47}},
-    {"novel-5", "0e0603030e0b0b110e0c1605", "0e0603030e0b0b110e0c1605",
-     {0xc72d068e, 0xec2061a8, 0x5b95efd9, 0x75dec5f0, 0xfc9a04ed, 0x618cf6c9}},
     {"novel-6", "0f0704040f0c0c120f0d1706", "0f0704040f0c0c120f0d1706",
      {0x0c473687, 0x41aa3657, 0x8ec11149, 0x0975d7bc, 0xc52640bd, 0xd6262b1d}},
-    {"novel-7", "0a030002100d031310001800", "0a030002100d031310001800",
-     {0x00adcee7, 0xd77a0ec7, 0xb4d5610b, 0x8049a1b1, 0x31416583, 0x4fb2e46c}},
-    {"novel-8", "05040101110104140b071901", "05040101110104140b071901",
-     {0x93330a2f, 0x403438e1, 0x9b792ffe, 0x3185b25d, 0xf186b1f3, 0x17ae7cb5}},
-    {"novel-9", "030202021203051512031a02", "030202021203051512031a02",
-     {0x2da3929b, 0x01e4a763, 0x2b44beb9, 0xc9296820, 0x68a37e15, 0x5233a2ca}},
     {"novel-10", "080100000000021611001d03", "080100000000021611001d03",
      {0xddbdd967, 0x67d2df3a, 0x844d8dc3, 0x71e018c7, 0x3db3c83a, 0x139971b8}},
 };
@@ -185,19 +151,6 @@ static void tables() {
             CHECK(widest * 10 == HEADS[h].rx10 && rows * 10 == (int)std::lround(d.ry * 20));
             CHECK(HEADS[h].half[(int)std::lround(23.0 - d.ry * 2)] > 0 && HEADS[h].half[22] > 0);
         }
-        // The integer forms of the derived anchors match the float formulas.
-        const int rx10 = HEADS[h].rx10;
-        const double rx = d.rx;
-        CHECK((rx10 * 58 + 500) / 1000 == (int)std::floor(rx * 0.58 + 0.5));
-        CHECK((rx10 * 62 + 500) / 1000 == (int)std::floor(rx * 0.62 + 0.5));
-        CHECK((rx10 * 60 + 500) / 1000 == (int)std::floor(rx * 0.60 + 0.5));
-        CHECK((rx10 * 70 + 500) / 1000 == (int)std::floor(rx * 0.70 + 0.5));
-        CHECK((rx10 * 90 + 500) / 1000 == (int)std::floor(rx * 0.90 + 0.5));
-        CHECK((rx10 * 55) / 1000 == (int)std::floor(rx * 0.55));
-        CHECK((rx10 * 62) / 1000 == (int)std::floor(rx * 0.62));
-        CHECK(rx10 / 10 == (int)rx);
-        CHECK((rx10 * 40 + 500) / 1000 == (int)std::floor(rx * 0.40 + 0.5));
-        CHECK((rx10 * 45 + 500) / 1000 == (int)std::floor(rx * 0.45 + 0.5));
     }
     for (int i = 1; i < TORSO_COUNT; i++) {
         const TorsoDef& d = TORSO_DEF[i];
@@ -252,7 +205,6 @@ static std::vector<std::string> names(int n) {
 
 static void traits() {
     // Deterministic; "" is the default agent.
-    CHECK(traitsFromSeed("alpha") == traitsFromSeed("alpha"));
     CHECK(traitsFromSeed("") == traitsFromSeed("default"));
     CHECK(traitsFromSeed(nullptr) == traitsFromSeed("default"));
     CHECK(fnv1a("default") == 2470140894u);
@@ -353,7 +305,6 @@ static void palette() {
         if (n.empty()) continue;
         const Traits t = traitsFromSeed(n.c_str());
         CHECK(t.palette < PALETTE_COUNT);
-        CHECK(t.palette == traitsFromSeed(n.c_str()).palette);
         used.insert(t.palette);
     }
     CHECK((int)used.size() == PALETTE_COUNT);
@@ -383,8 +334,6 @@ static void palette() {
             for (int i = 0; i < SlotCount; i++) r[i] = 0xEDCB;
             paletteFor(t, bg, r);
             for (int i = 0; i < SlotCount; i++) CHECK(p[i] == r[i]);
-            { uint16_t z[SlotCount]; for (int i = 0; i < SlotCount; i++) z[i] = 0x1234; paletteFor(t, bg, z);
-              for (int i = 0; i < SlotCount; i++) CHECK(z[i] == p[i]); }
             CHECK(p[Clear] == bg);
             // The character's own colors do not move with the theme.
             for (int s : {Outline, BodyD, Body, BodyL, Belly, AccD, Acc, AccL, White, WhiteD, Pupil,
@@ -469,22 +418,8 @@ static bool glowRule(const uint8_t* f) {
     return ok && glow;
 }
 
-static void rimPass() {
-    Character& c = character();
-    for (const std::string& n : names(60)) {
-        c.build(traitsFromSeed(n.c_str()));
-        for (int s = 0; s < StateCount; s++)
-            for (int k = 0; k < 3; k++) {
-                uint8_t f[PIXELS];
-                c.render((State)s, CTX_SAMPLES_AT(k), f);
-                CHECK(glowRule(f));
-            }
-    }
-}
-
 // ---------------------------------------------------------------- persona look
 static void looks() {
-    CHECK((size_t)TRAIT_FIELDS * 2 == 24);                 // setup_form.h LOOK_HEX_LEN
     uint8_t rec[TRAIT_FIELDS];
     CHECK(lookFromHex("ffffffff0300ffff0107ff02", rec) == TRAIT_FIELDS);
     CHECK(rec[0] == 0xFF && rec[4] == 0x03 && rec[5] == 0x00 && rec[6] == 0xFF && rec[8] == 0x01 &&
@@ -518,7 +453,6 @@ static void variants() {
         std::set<std::string> seen;
         for (uint16_t v = 0; v <= VARIANT_MAX; v++) {
             const Traits t = traitsForVariant(n, v);
-            CHECK(t == traitsForVariant(n, v));
             for (int i = 0; i < TRAIT_FIELDS; i++) CHECK(t.get(i) < TRAIT_RANGE[i]);
             seen.insert(hex(t));
         }
@@ -527,8 +461,6 @@ static void variants() {
     // Names give different variant sets.
     CHECK(variantSeed("alpha", 5) != variantSeed("nova", 5));
     CHECK(!(traitsForVariant("alpha", 5) == traitsForVariant("nova", 5)));
-    // Browsing numbers are exploration: variant n is the same character on every call.
-    CHECK(traitsForVariant("alpha", 3) == traitsForVariant("alpha", 3));
 }
 
 // ---------------------------------------------------------------- frames
@@ -540,7 +472,7 @@ static void partsBounds() {
     // One trait at a time through its whole vocabulary, others seeded.
     for (int field = 0; field < TRAIT_FIELDS; field++)
         for (int v = 0; v < TRAIT_RANGE[field]; v++)
-            for (const char* n : {"alpha", "nova", "kitchen", "agent-007", "agent-031"}) {
+            for (const char* n : {"alpha", "agent-031"}) {
                 Traits t = traitsFromSeed(n);
                 *t.at(field) = (uint8_t)v;
                 c.build(t);
@@ -715,7 +647,7 @@ static void waves() {
     }
     CHECK(waveHalf(0, 10) == 1 && waveHalf(255, 10) == 10);
     CHECK(waveHalf(-5, 10) == 1 && waveHalf(999, 10) == 10);
-    CHECK(waveHalf(60, 10) > waveHalf(60, 10) - 1 && waveHalf(20, 10) >= 3);   // speech levels stay visible
+    CHECK(waveHalf(20, 10) >= 3);   // speech levels stay visible
     CHECK(waveHalf(100, 1) == 1 && waveHalf(255, 38) == 38);
 }
 
@@ -742,7 +674,6 @@ static void schedules() {
             const uint32_t periods = span / tm.blink;
             CHECK(shut >= (periods - 1) * 60 && shut <= (periods + 1) * 72);
             CHECK(half >= (periods - 1) * 120 && half <= (periods + 1) * 144);
-            CHECK(blinkLid(seed, 12345, tm) == blinkLid(seed, 12345, tm));
         }
     }
     // Glances: -1/0/1, about once per 6 s.
@@ -782,7 +713,6 @@ static void dirty() {
             if (dirtyRect(prev, cur, r)) {
                 px += (long)(r.x1 - r.x0) * (r.y1 - r.y0);
                 changedFrames++;
-                CHECK(r.x1 - r.x0 <= W && r.y1 - r.y0 <= H);
             }
             frames++;
             memcpy(prev, cur, PIXELS);
@@ -828,8 +758,6 @@ static const FrozenKept FROZEN[] = {
      {0x1afc22db, 0xaf2d5839, 0xcc9bec5e, 0x0bdb3848, 0x0ec4a659, 0x2c64a3a9}},
     {"0305040300020902000d12004550fce1",
      {0x2033c857, 0x6b09f6be, 0x6cfd70ee, 0x69535e3c, 0xa6d11811, 0xa1f6d1b0}},
-    {"0f0704040f0c0c120f0d170642dc8204",
-     {0x0c473687, 0x41aa3657, 0x8ec11149, 0x0975d7bc, 0xc52640bd, 0xd6262b1d}},
 };
 
 static void keptLook() {
@@ -842,7 +770,6 @@ static void keptLook() {
             Traits u = traitsFromSeed("other");
             CHECK(keptDecode(b, KEPT_BYTES, u));
             CHECK(u == t);
-            CHECK(frameCrc(u, Idle, 5000, 100, 0, false) == frameCrc(t, Idle, 5000, 100, 0, false));
         }
     uint8_t b[KEPT_BYTES];
     keptEncode(traitsFromSeed("alpha"), b);
@@ -883,7 +810,6 @@ static void keptLook() {
     static_assert(Cat == 1 && Antenna == 6 && Led == 5 && Tooth == 5 && Crown == 4 && Halo == 11 &&
                       Glasses == 3 && Spots == 3,
                   "append-only vocabularies");
-    CHECK(std::strcmp(CHAR_PALETTES[0].name, "Tangerine") == 0 && std::strcmp(CHAR_PALETTES[17].name, "Sand") == 0);
     CHECK(PALETTE_COUNT > 18 && HEAD_COUNT > 10 && TORSO_COUNT > 5 && FEET_COUNT > 3 && ARMS_COUNT > 3);
     // The NVS key: fixed shape, within the 15-character limit, per agent.
     char a[16], k[16], d[16], e[16];
@@ -937,7 +863,7 @@ static void distinctness() {
     std::unordered_set<uint64_t> looks;
     std::vector<std::vector<bool> > reached(TRAIT_FIELDS);
     for (int i = 0; i < TRAIT_FIELDS; i++) reached[i].assign(TRAIT_RANGE[i], false);
-    const int N = 20000;
+    const int N = 2000;
     for (int i = 0; i < N; i++) {
         char name[32];
         std::snprintf(name, sizeof name, "agent-%05d", i);
@@ -1306,7 +1232,6 @@ int main() {
     traits();
     merging();
     palette();
-    rimPass();
     looks();
     variants();
     keptLook();

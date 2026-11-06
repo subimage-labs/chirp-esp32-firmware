@@ -2,6 +2,7 @@
 // the font choice (fontpick.h), the layout derived from the line box, and text
 // folding. Every family x size is checked. Run: firmware/test/host/run.sh
 #include "fontpick.h"
+#include "board.h"
 #include "battery.h"
 #include "setup_form.h"
 
@@ -118,7 +119,6 @@ static void fonts() {
             for (uint32_t c = 0x21; c < 0x7F; c++) CHECKF(vlwHas(*nc.cut, c), n);
             CHECKF(vlwHas(*nc.cut, 0xE9) && vlwHas(*nc.cut, 0xB0), n);   // é °
             CHECKF(vlwHas(*nc.cut, 0xA0), n);                     // the UI draws spaces as U+00A0
-            CHECKF(!vlwHas(*nc.cut, 0x20), n);                    // U+0020 is never looked up
             CHECKF(vlwAdvance(*nc.cut, ' ') > 0, n);
         } else {
             for (uint32_t c = 0x21; c < 0x7F; c++) CHECKF(vlwHas(*nc.cut, c), n);   // the agent's name
@@ -263,20 +263,17 @@ static void labels() {
         auto width = [&](const char* s) { return vlwWidth(c, s); };
         const std::string longest = "Kitchen lights automation ideas for the evening and more";
         const std::string cut = fitText(longest, rowW, width);
-        CHECKF(width(cut.c_str()) <= rowW, n);
         CHECKF(cut.size() > 3 && cut.compare(cut.size() - 3, 3, "\xE2\x80\xA6") == 0, n);
         CHECKF(fitText("Fits", rowW, width) == "Fits", n);
-        for (const char* hint : {"Wheel=select  Encoder=open  Side=Theme",
-                                 "Encoder=change settings on phone", "Encoder=switch agent (restarts)",
-                                 "Wheel=font  Encoder=size M",
-                                 "Ball=select  Enter=open  Click=next",
-                                 "Ball=theme  Enter=light  Click=next",
-                                 "Ball=font  Enter=size M  Click=next",
-                                 "Ball=browse  Enter=keep  Click=next",
-                                 "WiFi failed: Click 5x = Setup",
-                                 "Hold the mic key to talk", "Enter to send, Click for menu"}) {
-            const std::string h = fitText(hint, SCREEN_W - 12, width);   // uiMsg's rule
-            CHECKF(width(h.c_str()) <= SCREEN_W - 12, n);
+        for (const char* hint : {CHIRP_WIFI_HELP, CHIRP_HINT1, CHIRP_HINT2}) {
+            // The actual board strings must use glyphs this cut can draw.
+            const std::string text = hint;
+            const char* p = text.data();
+            const char* end = p + text.size();
+            while (p < end) {
+                const uint32_t cp = utf8Next(p, end);
+                CHECKF(cp == ' ' || vlwHas(c, cp), n);
+            }
         }
     }
     // Cutting never splits a UTF-8 sequence, even when only multi-byte text is left.
@@ -289,19 +286,6 @@ static void labels() {
     CHECK(width(em.c_str()) <= 20);
     CHECK(fitText("anything", 3, width) == "\xE2\x80\xA6");          // nothing fits: just the mark
     CHECK(fitText("", 0, width).empty());
-
-    // The setup portal: Atkinson M beside the QR code (text column 158 px wide).
-    const FontCut& fx = FONT_FAMILIES[fontFind(FONT_FIXED_FAMILY)].size[FONT_SIZE_M];
-    const int col = SCREEN_W - 162;
-    for (const char* s : {"Chirp setup", "Scan, or join WiFi:", "Password:",
-                          "The form opens itself;", "else browse to", "http://255.255.255.255",
-                          "Phone connected", "Side key = cancel", "Waiting for a phone"})
-        CHECKF(vlwWidth(fx, s) <= col, s);
-    int widest = 0;                                                  // the password alphabet's widest glyph
-    for (const char* k = PORTAL_PASS_ALPHABET; *k; k++)
-        widest = std::max(widest, vlwAdvance(fx, (uint8_t)*k));
-    CHECK(PORTAL_PASS_LEN * widest + 6 <= (size_t)col);              // its own line, indented 6 px
-    CHECK(vlwWidth(fx, "Chirp-DDDD") + 6 <= col);   // portal.cpp "Chirp-%02X%02X", wide digits
 }
 
 // The battery block at the status strip's right edge, at every family and

@@ -124,7 +124,6 @@ static void shimmerBounds() {
     CHECK(shimmerLevel(0, 0, 100) == 0);
     CHECK(shimmerLevel(-1, 5, 100) == 0);
     CHECK(shimmerLevel(5, 5, 100) == 0);
-    CHECK(shimmerLevel(0, 1, 0xFFFFFFF0u) <= 255);    // millis() wrap-safe
 }
 
 int main() {

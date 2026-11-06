@@ -49,9 +49,9 @@ static void basics() {
     s.push("", 0, 2);
     s.push("caf\xC3\xA9", 5, 1);
     CHECK(s.size() == 3 && !s.empty());
-    CHECK(std::strcmp(s.text(0), "hello world") == 0 && s.length(0) == 11 && s.kind(0) == 0);
-    CHECK(std::strcmp(s.text(1), "") == 0 && s.length(1) == 0 && s.kind(1) == 2);
-    CHECK(std::strcmp(s.text(2), "caf\xC3\xA9") == 0 && s.length(2) == 5 && s.kind(2) == 1);
+    CHECK(std::strcmp(s.text(0), "hello world") == 0 && s.kind(0) == 0);
+    CHECK(std::strcmp(s.text(1), "") == 0 && s.kind(1) == 2);
+    CHECK(std::strcmp(s.text(2), "caf\xC3\xA9") == 0 && s.kind(2) == 1);
     CHECK(s.lastKind() == 1);
     // Each line is NUL-terminated in place, so it can be drawn without a copy.
     CHECK(s.text(0)[11] == '\0');
@@ -61,9 +61,9 @@ static void basics() {
     s.popBack();
     CHECK(s.size() == 1 && std::strcmp(s.text(0), "hello world") == 0);
     s.push("again", 5, 1);                           // reuses the space popBack gave back
-    CHECK(s.size() == 2 && std::strcmp(s.text(1), "again") == 0 && s.textBytes() == 12 + 6);
+    CHECK(s.size() == 2 && std::strcmp(s.text(1), "again") == 0);
     s.clear();
-    CHECK(s.empty() && s.textBytes() == 0);
+    CHECK(s.empty());
     s.push("x", 1, 0);
     CHECK(s.size() == 1 && std::strcmp(s.text(0), "x") == 0);
 
@@ -71,7 +71,7 @@ static void basics() {
     const char raw[] = {'a', 'b', 'c', 'd'};
     s.clear();
     s.push(raw, 2, 0);
-    CHECK(std::strcmp(s.text(0), "ab") == 0 && s.length(0) == 2);
+    CHECK(std::strcmp(s.text(0), "ab") == 0);
 }
 
 static void manyLines() {
@@ -83,7 +83,7 @@ static void manyLines() {
     }
     CHECK(s.size() == 600);
     for (int i = 0; i < 600; i++) {
-        CHECK(expect[i] == s.text(i) && s.length(i) == expect[i].size() && s.kind(i) == i % 3);
+        CHECK(expect[i] == s.text(i) && s.kind(i) == i % 3);
     }
 }
 

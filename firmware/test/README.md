@@ -26,7 +26,7 @@ The tests stop regressions in rules that users depend on:
 | Look and theme | Colors, contrast, avatar parts, logo | `theme`, `avatar`, `logo` tests and `test_logo_web.py` |
 | Speech and turns | Chunking, memory playback, answer text handoff, history | `sentence_packer`, `mem_source`, `turntext`, `venice_policy`, `line_store` tests |
 | Power | Dim, sleep and wake timeline, battery gauge | `power_policy`, `battery`, `expiry` tests |
-| Boot and OTA | Boot check messages, manifest parsing, install decision | `selftest_policy`, `venice_selftest`, `ota_policy` tests, `host/test_publish_firmware.py` |
+| Boot and OTA | Boot check messages, manifest parsing, install decision | `selftest_policy`, `ota_policy` tests, `host/test_publish_firmware.py` |
 | Build | Release images do not carry build machine paths | `test_build_paths.py` |
 | Host tools | Pairing, provisioning, the audio shim limits, the secret guard | `host/test_*.py` |
 

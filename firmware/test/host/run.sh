@@ -52,12 +52,6 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/venice_policy_test.cpp" -o "$out/venice_policy_test"
 "$out/venice_policy_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
-    "$here/venice_voice_test.cpp" -o "$out/venice_voice_test"
-"$out/venice_voice_test"
-g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
-    "$here/venice_selftest_test.cpp" -o "$out/venice_selftest_test"
-"$out/venice_selftest_test"
-g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/selftest_policy_test.cpp" -o "$out/selftest_policy_test"
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/ota_policy_test.cpp" -o "$out/ota_policy_test"
@@ -66,9 +60,11 @@ g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
 g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/theme_test.cpp" -o "$out/theme_test"
 "$out/theme_test"
-g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
-    "$here/font_test.cpp" -o "$out/font_test"
-"$out/font_test"
+for board in TEMBED TDECK; do
+    g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -DCHIRP_BOARD_${board}=1 -I"$fw/include" \
+        "$here/font_test.cpp" -o "$out/font_test"
+    "$out/font_test"
+done
 g++ -std=c++11 -O1 -g -Wall -Wextra -Werror -I"$fw/include" \
     "$here/setup_view_test.cpp" -o "$out/setup_view_test"
 "$out/setup_view_test"

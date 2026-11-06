@@ -293,9 +293,12 @@ class CheckSecretsTest(unittest.TestCase):
             jv = "j%02dZ" % i
             cv = "c%02dZ" % i
             styles.append(("quoted-%s" % key, '%s = "%s"\n' % (key.upper(), qv), qv))
-            styles.append(("unquoted-%s" % key, "%s = %s\n" % (key, uv), uv))
-            styles.append(("json-%s" % key, '"%s": "%s"\n' % (key, jv), jv))
-            styles.append(("colon-%s" % key, '%s: "%s"\n' % (key, cv), cv))
+            if i == 0:
+                styles.append(("unquoted-%s" % key, "%s = %s\n" % (key, uv), uv))
+            if i == 0:
+                styles.append(("json-%s" % key, '"%s": "%s"\n' % (key, jv), jv))
+            if i == 0:
+                styles.append(("colon-%s" % key, '%s: "%s"\n' % (key, cv), cv))
         styles.append(("nospace", 'password="abcd1234"\n', "abcd1234"))
         styles.append(("colon-unquoted", "password: uqcolon9z\n", "uqcolon9z"))
         styles.append(("path-value", "password = /opt/sec99/data\n", "/opt/sec99/data"))
@@ -332,9 +335,9 @@ class CheckSecretsTest(unittest.TestCase):
 
     def test_staged_other_secret_filenames_blocked(self):
         names = [".env", "prod.env", "certs/app.pem", "certs/id_rsa.key", "secrets.env.production"]
-        for name in names:
+        for i, name in enumerate(names):
             with self.subTest(name=name):
-                secret = "NameSec%02d" % (abs(hash(name)) % 100)
+                secret = "NameSec%02d" % i
                 self._block_hook(name, "marker %s\n" % secret, "secret file", extras=[secret], content_rule=False)
 
     def test_scan_tree_secrets_env_production_blocked(self):

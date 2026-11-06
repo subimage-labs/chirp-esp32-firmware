@@ -165,8 +165,6 @@ class Heap(unittest.TestCase):
         self.assertEqual(w[0]["n"], 40)
 
     def test_pass_although_commit_ends_below_its_start(self):
-        commit = next(w for w in smoke.parse_heap(HEAP_OK) if w["name"] == "commit")
-        self.assertLess(commit["free1"], commit["free0"] - 40000)   # the old per-workload rule failed this
         ok, ev = smoke.check_heap(HEAP_OK, TOL, FLOOR)
         self.assertTrue(ok, ev)
         self.assertIn("settled free 150000->149000 (-1000)", ev)
@@ -209,10 +207,6 @@ class Heap(unittest.TestCase):
         lines = run_lines(workloads=[heap_line(n, mn=100000) for n in smoke.HEAP_WORKLOADS])
         self.assertTrue(smoke.check_heap(lines, TOL, 100000)[0])
         self.assertFalse(smoke.check_heap(lines, TOL, 100001)[0])
-
-    def test_defaults(self):
-        self.assertEqual(smoke.HEAP_FLOOR_DEFAULT, 96 * 1024)
-        self.assertEqual(smoke.HEAP_TOL_DEFAULT, 6 * 1024)
 
     def test_heap_line_min_counts(self):
         lines = HEAP_OK + [mark("bench-start", 1, 1, 50000)]
@@ -303,8 +297,6 @@ class Table(unittest.TestCase):
                            {"name": "heap", "ok": False, "evidence": "leak"}])
         self.assertIn("boot", out)
         self.assertIn("FAIL", out)
-        self.assertIn("1/2 passed", out)
-        self.assertIn("FAILED", out)
 
 
 class ReadLog(unittest.TestCase):

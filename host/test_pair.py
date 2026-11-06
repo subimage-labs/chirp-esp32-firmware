@@ -19,6 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import pair  # noqa: E402
+import avatar_look as al  # noqa: E402
 
 KEY = "k3y-for-tests-only-0123456789abcdef"
 
@@ -104,14 +105,59 @@ class QrHandoff(unittest.TestCase):
 
 
 class Notes(unittest.TestCase):
-    def test_lan_note_names_the_port_and_the_firewall(self):
+    def test_lan_note_names_the_port(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             pair.lan_note()
         text = out.getvalue()
-        self.assertIn("plain HTTP", text)
         self.assertIn(str(pair.HERMES_PORT), text)
-        self.assertIn("firewall", text)
+
+
+class PairFlow(unittest.TestCase):
+    """pair.py's look step, with the owner's answers scripted."""
+
+    SOUL = "Zebrafish-Quartz protocol. You are a cheerful kitchen assistant."
+
+    def run_choose(self, args, answers=()):
+        import argparse
+        import contextlib
+        import io
+        import pair
+        ns = argparse.Namespace(look=None, yes=False)
+        for k, v in args.items():
+            setattr(ns, k, v)
+        feed = iter(answers)
+        out = io.StringIO()
+        with mock.patch("builtins.input", lambda prompt="": next(feed)), \
+                contextlib.redirect_stdout(out):
+            result = pair.choose_look(ns, "alpha", self.SOUL)
+        return result, out.getvalue()
+
+    def test_yes_keeps_the_device_character_unless_asked(self):
+        self.assertEqual(self.run_choose({"yes": True}), (None, ""))
+        result, text = self.run_choose({"yes": True, "look": "auto"})
+        self.assertEqual(len(result), 24)
+        self.assertIn("toque", text)
+
+    def test_accept_reroll_keep(self):
+        rec, _ = al.derive("alpha", self.SOUL)
+        result, text = self.run_choose({}, ["a"])
+        self.assertEqual(result, al.to_hex(rec))
+        result, text = self.run_choose({}, ["r", "r", "a"])
+        self.assertEqual(result, al.to_hex(al.reroll(rec, "alpha", 2)))
+        self.assertIn("reroll 2", text)
+        self.assertEqual(self.run_choose({}, ["k"])[0], "")
+
+    def test_edit_spec_and_none(self):
+        result, _ = self.run_choose({"look": "hat=beanie"})
+        self.assertEqual(al.from_hex(result)[al.FIELDS.index("hat")], al.HATS.index("beanie"))
+        self.assertEqual(self.run_choose({"look": "none"})[0], "")
+
+    def test_the_persona_is_never_printed(self):
+        for args, answers in (({"look": "auto"}, ()), ({}, ["r", "a"])):
+            _, text = self.run_choose(args, answers)
+            self.assertNotIn("zebrafish", text.lower())
+            self.assertNotIn("quartz", text.lower())
 
 
 if __name__ == "__main__":

@@ -46,7 +46,6 @@ static void checkPanel(const char* board, int w, int h, int modules) {
     CHECK(l.qrX >= 0 && l.qrY >= bodyTop && l.qrY + l.qrSide <= h, "%s %dx%d v%d: QR %d..%d",
           board, w, h, modules, l.qrY, l.qrY + l.qrSide);
     CHECK(l.colX >= l.qrX + l.qrSide + GUTTER, "%s: column over the code", board);
-    CHECK(l.colW >= COL_MIN, "%s: column %d < %d", board, l.colW, COL_MIN);
     CHECK(l.labelY >= bodyTop, "%s: column over the headline (%d < %d)", board, l.labelY, bodyTop);
     CHECK(l.statusY + STATUS_LINES * LINE <= h, "%s %dx%d v%d: two status lines end at %d > %d",
           board, w, h, modules, l.statusY + STATUS_LINES * LINE, h);

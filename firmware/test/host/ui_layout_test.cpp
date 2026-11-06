@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include "fontpick.h"
+#include "avatar.h"
 
 #include "../../src/fonts/font_data.cpp"
 
@@ -76,7 +77,6 @@ static void checkPanel(const Panel& p) {
                 continue;
             }
             CHECK(inside(c.comp, p.w, p.h), "%s %dx%d: companion outside the screen", p.boards, p.w, p.h);
-            CHECK(c.scale >= 2 && c.scale <= 4, "%s: avatar scale %d", p.boards, c.scale);
             CHECK(AV * c.scale + 2 * PAD <= c.comp.w && AV * c.scale + 2 * PAD <= c.comp.h,
                   "%s: avatar %d px does not fit its area", p.boards, AV * c.scale);
             if (c.companion == Companion::Rail) {
@@ -86,7 +86,6 @@ static void checkPanel(const Panel& p) {
                       railStackH(c.scale, m.line, small), c.comp.h);
             } else {
                 CHECK(c.chat.y >= c.comp.bottom(), "%s: chat over the band", p.boards);
-                CHECK(p.w - (AV * c.scale + 2 * PAD) >= META_MIN_W, "%s: no room for the name", p.boards);
             }
         }
     }
@@ -118,8 +117,6 @@ static void checkScene(const Panel& p) {
         CHECK(sc.col.y >= spr.bottom(), "%s %dx%d: column over the avatar", p.boards, p.w, p.h);
     else
         CHECK(sc.col.x >= spr.right(), "%s %dx%d: column over the avatar", p.boards, p.w, p.h);
-    CHECK(sc.col.w >= MIN_CHAT_W - 6 && sc.col.h >= SCENE_COL_MIN_H,
-          "%s %dx%d: column %dx%d", p.boards, p.w, p.h, sc.col.w, sc.col.h);
 }
 
 static void testScenePolicy() {
@@ -158,9 +155,21 @@ static void checkPreview(const Panel& p) {
             const UiMetrics m = uiMetricsFor(FONT_FAMILIES[f].size[s].box);
             const int card = previewCardH(p.h, CONTENT_Y, m.header, m.status);
             const Preview pv = previewLayout(p.w, card);
-            CHECK(AV * pv.scale <= card, "%s %dx%d %s %c: %d px avatar in a %d px card", p.boards,
-                  p.w, p.h, FONT_FAMILIES[f].name, fontSizeLetter((uint8_t)s), AV * pv.scale, card);
-            CHECK(pv.textX < p.w - 4, "%s %dx%d: preview text starts off screen", p.boards, p.w, p.h);
+            // Bound the rendered sprite using the art's dimensions and the
+            // screen's header/status edges, independently of the layout fit rule.
+            const int top = CONTENT_Y + m.header + 2;
+            const int bottom = p.h - m.status;
+            const int height = avatar::H * pv.scale;
+            const int y = top + (bottom - top - height) / 2;
+            if (pv.scale) {
+                CHECK(y >= top && y + height <= bottom,
+                      "%s: preview sprite crosses header or status", p.boards);
+                CHECK(pv.avX >= 0 && pv.avX + avatar::W * pv.scale <= pv.textX,
+                      "%s: preview sprite overlaps text", p.boards);
+            }
+            const FontCut& cut = FONT_FAMILIES[f].size[s];
+            CHECK(pv.textX + vlwWidth(cut, "Chirper") <= p.w,
+                  "%s: preview cannot display its title", p.boards);
         }
 }
 

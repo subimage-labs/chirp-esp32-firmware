@@ -28,7 +28,6 @@ static Chunks stream(SentencePacker& p, std::initializer_list<const char*> delta
 static void shortAnswerIsOneChunk() {
     SentencePacker p(2, 14, 80);
     const Chunks c = stream(p, {"Hi ", "there. ", "How are", " you?"});
-    CHECK(c.size() == 1);
     CHECK(c.size() == 1 && c[0] == "Hi there. How are you?");
 }
 
@@ -147,7 +146,6 @@ static void burstFollowsTheRamp() {
     SentencePacker p = deviceRamp();
     Chunks out;
     p.feed((sentences(12, 8) + "tail").c_str(), out);      // 12 sentences of 8 words
-    CHECK(out.size() >= 4);
     CHECK(out.size() >= 4 && words(out[0]) == 8);          // 1 sentence
     CHECK(out.size() >= 4 && words(out[1]) == 16);         // second chunk: 2 sentences
     CHECK(out.size() >= 4 && words(out[2]) == 32);         // then grown: >= 30 words -> 4 sentences
@@ -231,7 +229,6 @@ static void noRampMeansPlainMinimums() {
     SentencePacker p(2, 14, 80, 3);
     Chunks out;
     p.feed((sentence(4) + sentences(2, 8) + sentences(2, 8) + sentences(2, 8)).c_str(), out);
-    CHECK(out.size() == 4);
     CHECK(out.size() == 4 && words(out[0]) == 4 && words(out[1]) == 16 && words(out[2]) == 16 &&
           words(out[3]) == 16);
 }

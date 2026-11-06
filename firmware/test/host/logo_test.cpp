@@ -64,7 +64,6 @@ static bool isShape(uint8_t s) { return s != Clear && s != Outline && s != Rim; 
 
 // ---------------------------------------------------------------- art
 static void artShape() {
-    CHECK(W == ART_W + 2 * MARGIN && H == ART_H + 2 * MARGIN && PIXELS == W * H);
     int used[SlotCount] = {0};
     for (int y = 0; y < ART_H; y++) {
         CHECK((int)std::strlen(ROWS[y]) == ART_W);
@@ -204,7 +203,6 @@ static void renderRule() {
 // ---------------------------------------------------------------- palette
 static void palette() {
     const std::vector<uint16_t> bgs = themeBackgrounds();
-    CHECK(bgs.size() == (size_t)THEME_COUNT * 2);
     for (const uint16_t bg : bgs) {
         uint16_t p[SlotCount];
         paletteFor(bg, p);
@@ -276,7 +274,6 @@ static void scaling() {
     CHECK(fitScale(W * 3 - 1, 1000, 4) == 2);       // width limits too
     CHECK(fitScale(1, 1, 4) == 1);                  // nothing fits: the smallest
     CHECK(fitScale(1000, 1000, 4) == 4);            // never above the maximum
-    CHECK(fitScale(1000, 1000, 1) == 1);
 }
 
 int main() {

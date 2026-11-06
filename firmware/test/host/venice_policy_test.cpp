@@ -2,6 +2,8 @@
 #include "venice_policy.h"
 
 #include <cstdio>
+#include <cstring>
+#include <set>
 #include <string>
 
 static int failures = 0;
@@ -68,14 +70,28 @@ static void errors() {
 
 static void persona() {
     const std::string p = venice_policy::SYSTEM_PROMPT;
-    CHECK(p.find("one button") != std::string::npos);          // the device shape
     CHECK(p.find("grown-up they trust") != std::string::npos); // the escalation rule
     CHECK(p.find("Never ask for personal details") != std::string::npos);
     CHECK(p.find("no adult topics") != std::string::npos);
-    CHECK(p.size() > 800 && p.size() < 2500);                  // lean: sent every turn
+}
+
+static void voices() {
+    using namespace venice_policy;
+    for (int i = 0; i < VOICE_COUNT; i++) CHECK(voiceIndex(VOICES[i].id) == i);
+    CHECK(voiceIndex("af_nope") == 0);                // a voice dropped from the list
+    CHECK(voiceIndex("") == 0);                       // nothing stored yet
+    std::set<std::string> seen;
+    int v = 0;
+    for (int n = 0; n < VOICE_COUNT; n++) {
+        seen.insert(VOICES[v].id);
+        v = voiceNext(v);
+    }
+    CHECK((int)seen.size() == VOICE_COUNT && v == 0);  // every voice once, then back
+    CHECK(strcmp(VOICES[0].id, "af_sky") == 0);       // the default is the voice devices had
 }
 
 int main() {
+    voices();
     messages();
     errors();
     persona();

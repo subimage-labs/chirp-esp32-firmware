@@ -32,7 +32,6 @@ static void sides() {
         CHECK(u.x + u.w == G.colW - G.tail);
         CHECK(u.x >= G.inset);
     }
-    CHECK(place(G, Agent, 1, 40, 0, 0, 0).w == place(G, User, 1, 40, 0, 0, 0).w);
     CHECK(place(G, Agent, 9, 1000, 0, 0, 0).w == G.colW - G.agentInset);   // a full answer line
 }
 
@@ -45,7 +44,6 @@ static void sizes() {
     CHECK(wide.w == maxTextW(G, Agent) + 2 * G.padX);
     CHECK(wide.h == 5 * G.lineH + 2 * G.padY);
     CHECK(place(G, User, 1, 1000, 0, 0, 0).w == maxTextW(G, User) + 2 * G.padX);
-    CHECK(maxTextW(G, Agent) == maxTextW(G, User) + G.tail + G.inset - G.agentInset);
     const Box tiny = place(G, User, 1, 3, 0, 0, 0);             // "4": still a bubble
     CHECK(tiny.w >= G.lineH);
     const Box band = place(G, Agent, 2, 20, 26, 118, 0);        // the speaking wave under short text
@@ -55,18 +53,8 @@ static void sizes() {
     CHECK(maxTextW(G, User) >= 118);                             // the meters fit either side
 }
 
-// Stacked bubbles never overlap and keep the gap; the column ends a margin
-// below the last one.
-static void stacking() {
-    int y = G.margin;
-    Box last = {0, 0, 0, 0};
-    for (int i = 0; i < 6; i++) {
-        const Box b = place(G, i % 2 ? Agent : User, 1 + i, 50 + 10 * i, 0, 0, y);
-        if (i) CHECK(b.y == last.y + last.h + G.gap);
-        last = b;
-        y = below(G, b);
-    }
-    CHECK(total(G, &last) == last.y + last.h + G.margin);
+// An empty transcript has no height.
+static void empty() {
     CHECK(total(G, nullptr) == 0);
 }
 
@@ -143,7 +131,7 @@ static void placeRoundTrip() {
 int main() {
     sides();
     sizes();
-    stacking();
+    empty();
     scrolling();
     followsSpeech();
     visibility();

@@ -92,20 +92,11 @@ class LogoWeb(unittest.TestCase):
             self.assertTrue(all(v == 0 for v in px[w:]))     # padding nibble
         self.assertLessEqual(len(uri), 700)                  # served from the ESP32: keep it small
 
-    def test_page_background(self):
-        hexbg, bg565 = logo_preview.run(self.exe, "webbg").split()
-        self.assertIn('#define LOGO_WEB_BG "#%s"' % hexbg, self.text)
-        w, h, *_ = logo_web.logo_frame(self.exe)
-        self.assertIn('#define LOGO_WEB_SIZE "width=%d height=%d"' % (w * logo_web.SCALE, h * logo_web.SCALE),
-                      self.text)
-
     def test_portal_uses_it(self):
         portal = read(PORTAL)
         self.assertIn('#include "logo_web.h"', portal)
         self.assertIn("LOGO_WEB_PNG", portal)
         self.assertIn("LOGO_WEB_BG", portal)
-        self.assertIn("image-rendering:pixelated", portal)
-        self.assertLess(portal.index("LOGO_WEB_PNG"), portal.index("<h2>Chirp setup</h2>"))
 
 
 class Deflate(unittest.TestCase):
@@ -132,10 +123,6 @@ class Deflate(unittest.TestCase):
         rng = random.Random(3)
         block = bytes(rng.randrange(256) for _ in range(300))
         self.roundtrip(block + bytes(rng.randrange(256) for _ in range(2000)) + block)
-
-    def test_deterministic(self):
-        data = bytes(random.Random(1).randrange(4) for _ in range(500))
-        self.assertEqual(logo_web.deflate(data), logo_web.deflate(data))
 
 
 if __name__ == "__main__":

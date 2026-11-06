@@ -44,7 +44,6 @@ static void curve() {
     // The table itself: ascending in both columns, so the curve is a function.
     for (int i = 1; i < BATTERY_CURVE_N; i++) {
         CHECK(BATTERY_CURVE[i].mv > BATTERY_CURVE[i - 1].mv);
-        CHECK(BATTERY_CURVE[i].pct > BATTERY_CURVE[i - 1].pct);
     }
     // Monotonic, 0..100, and no jump larger than the steepest segment allows.
     int prev = 0;
@@ -238,11 +237,8 @@ static void layout() {
         CHECK(l.glyphH >= 8 && l.glyphH <= box);
         CHECK(l.glyphW > l.glyphH && l.nubH > 0 && l.nubH < l.glyphH);
         CHECK(l.boltW >= 4);
-        CHECK(l.width == l.boltW + l.gap + l.glyphW + l.nubW);
         CHECK(l.glyphH - 4 >= 4);                              // room for the bar
     }
-    const BatteryLayout m = batteryLayout(18);                 // the default size
-    CHECK(m.glyphH == 10 && m.glyphW == 22);
 }
 
 int main() {

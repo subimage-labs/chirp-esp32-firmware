@@ -1,5 +1,7 @@
 // Host tests for PowerPolicy. Run: firmware/test/host/run.sh
 #include "power_policy.h"
+#define CHIRP_BOARD_TEMBED 1
+#include "config.h"
 
 #include <cstdio>
 
@@ -39,7 +41,7 @@ static void animationSlowsOnBatteryWhenIdle() {
     CHECK(!p.animSlow(1000));
     CHECK(!p.animSlow(1000 + SLOW - 1));
     CHECK(p.animSlow(1000 + SLOW));
-    CHECK(SLOW < DIM && p.backlight(1000 + SLOW) == Backlight::Full);   // slows before it dims
+    CHECK(ANIM_SLOW_MS < SCREEN_DIM_MS && p.backlight(1000 + SLOW) == Backlight::Full);   // slows before it dims
     CHECK(p.animSlow(1000 + DIM) && p.animSlow(1000 + OFF));            // and stays slow
     p.activity(1000 + SLOW + 5);
     CHECK(!p.animSlow(1000 + SLOW + 5));                                // any input: full rate

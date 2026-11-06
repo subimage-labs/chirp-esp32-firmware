@@ -75,7 +75,7 @@ class Signing(unittest.TestCase):
         for text in (
             GOLDEN_CANON.replace("1700000000", "1700000001"),
             GOLDEN_CANON.replace("v0.9-3", "v0.9-4"),
-            GOLDEN_CANON.replace("1234567", "1234568"),
+            GOLDEN_CANON.replace("|1234567|", "|1234568|"),
             GOLDEN_CANON[:-1] + "e",
             GOLDEN_CANON.replace("chirp-ota-v1", "chirp-ota-v2"),
         ):
