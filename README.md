@@ -1,27 +1,58 @@
 <p align="center"><img src="docs/chirp-logo.png" alt="chirp!" width="288"></p>
 
-# Chirp! Your pocket voice agent interface for ESP32 devices
+# chirp! A pocket voice companion
 
-Chirp runs on the LilyGO T-Embed CC1101 Plus and the LilyGO T-Deck. More
-devices will follow.
+Hold the talk key and ask a question out loud. chirp sends the question to an
+AI and speaks the answer. A small pixel character, the Chirper, shows what
+happens: it listens, it thinks, it talks. The words show on the screen too.
 
-Hold the talk key and speak. The device sends your question to an AI agent
-and speaks the answer. The conversation shows on the screen. Small pixel
-characters, the Chirpers, show what the agent does.
+| You talk | It thinks | The answer starts | It speaks |
+|:-:|:-:|:-:|:-:|
+| <img src="docs/media/chirper-listening.gif" width="120" alt="The Chirper listens"> | <img src="docs/media/chirper-thinking.gif" width="120" alt="The Chirper thinks"> | <img src="docs/media/chirper-pleased.gif" width="120" alt="The Chirper hops with sparkles"> | <img src="docs/media/chirper-speaking.gif" width="120" alt="The Chirper speaks"> |
 
-## What chirp does
+chirp runs on two small handheld devices from LilyGO: the
+[T-Embed CC1101 Plus](https://lilygo.cc/products/t-embed-cc1101-plus) (a dial
+and two keys) and the [T-Deck](https://lilygo.cc/products/t-deck) (a keyboard
+and a trackball). More devices will follow.
 
-- It works with two backends: Venice in the cloud, or Hermes on your own
-  computer. You select one during setup.
-- You set it up from a phone. You do not need an app.
-- It saves up to 5 WiFi networks and connects to the strongest one in range.
-- You can change the theme, the font, the text size and the Chirper.
+## What you can do with it
 
-## Two backends
+- **Ask out loud.** A fact, a recipe, a word you cannot spell. The answer
+  comes back as speech and as text.
+- **Talk hands-free.** Push the talk key two times quickly. chirp listens
+  again after each answer.
+- **Type.** On the T-Deck, type a question and push **Enter**.
+- **Go back to a chat.** With Hermes, the **Chats** tab resumes recent
+  conversations.
+- **Make it yours.** Pick a Chirper, a theme, a font and a text size. With
+  Venice, pick a voice.
+- **Set it up from a phone.** You do not need an app. chirp keeps up to 5
+  WiFi networks and joins the strongest one in range.
 
-| | Venice | Hermes |
+## Meet the Chirpers
+
+Every agent has its own Chirper. chirp draws it from the name of the agent,
+so a different name gives a different character. In the **Chirper** tab, turn
+the dial to browse more characters and keep the one you like.
+
+<p align="center"><img src="docs/media/chirpers.png" width="512" alt="64 different Chirpers"></p>
+
+## Pick a theme
+
+Six colour themes, each in dark and light. You can also pick one of four fonts
+in three sizes. The screen layout adjusts to every size.
+
+<p align="center"><img src="docs/media/themes.png" width="592" alt="The chirp! logo on the 12 themes"></p>
+
+## Where the answers come from
+
+During setup you pick one of two backends.
+
+| | Easy: Venice | Private: Hermes |
 |---|---|---|
+| Best for | A quick start with only the device and a phone | Keeping your data at home, and chats you can resume |
 | Answers come from | Venice cloud models | Your own [Hermes Agent](https://hermes-agent.nousresearch.com/docs/getting-started/installation) profile |
+| Personality | *Chirper*, a friendly companion for children, built into the firmware | The persona of your Hermes agent |
 | Speech to text and voice | Venice cloud | Your own computer |
 | You need | A Venice account with API credit, and an API key | A Linux computer on the same WiFi that runs Hermes and the chirp speech server |
 | Cost | Venice charges credit for each answer | The cost of your Hermes model provider. Speech is free. |
@@ -31,7 +62,8 @@ characters, the Chirpers, show what the agent does.
 
 ### 1. Get the parts
 
-- A T-Embed CC1101 Plus or a T-Deck.
+- A [T-Embed CC1101 Plus](https://lilygo.cc/products/t-embed-cc1101-plus) or a
+  [T-Deck](https://lilygo.cc/products/t-deck).
 - A USB-C cable that carries data. A charge-only cable does not work.
 - A phone with a web browser.
 - A 2.4 GHz WiFi network. A network with a sign-in page does not work.
@@ -42,18 +74,14 @@ characters, the Chirpers, show what the agent does.
   (`pip install platformio`). For the T-Embed, you can use the browser
   installer in Chrome or Edge instead.
 
-### 2. Get the code
+### 2. Install the firmware
+
+Get the code, connect the device with the USB cable, and run the command for
+your device:
 
 ```sh
 git clone <repo-url> chirp-esp32-firmware
 cd chirp-esp32-firmware
-```
-
-### 3. Install the firmware
-
-Connect the device with the USB cable. Then run the command for your device:
-
-```sh
 pio run -d firmware -e t-embed-cc1101 -t upload     # T-Embed CC1101 Plus
 pio run -d firmware -e t-deck -t upload             # T-Deck
 ```
@@ -64,7 +92,7 @@ firmware of every device, one after the other.
 For the browser installer, and for a T-Deck that does not accept the upload,
 see [Installing the firmware](docs/flashing.md).
 
-### 4. Set up the device from your phone
+### 3. Set up the device from your phone
 
 A device without settings starts its own WiFi network. The screen shows the
 network name (`Chirp-XXXX`), a password and a QR code.
@@ -84,7 +112,7 @@ For Hermes, first run `host/setup.sh` and `host/pair.py` on the Hermes
 computer. See [Hermes setup](docs/setup-hermes.md). For more about Venice, see
 [Venice setup](docs/setup-venice.md).
 
-### 5. Talk
+### 4. Talk
 
 Hold the talk key and speak. Release the key. The device speaks the answer.
 
