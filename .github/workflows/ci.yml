@@ -64,3 +64,8 @@ jobs:
 
       - name: Build firmware
         run: pio run -d firmware
+
+      # The bench build (BENCH_CMDS) is what host/smoke.py drives on a device;
+      # compile it too, so a break in the bench code shows here, not on the bench.
+      - name: Build bench firmware
+        run: PLATFORMIO_BUILD_FLAGS=-DBENCH_CMDS pio run -d firmware
