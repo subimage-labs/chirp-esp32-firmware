@@ -3,8 +3,8 @@
 
 Endpoints:
   POST /v1/audio/transcriptions         (multipart: file=<wav>) -> {"text": ...}
-  POST /v1/audio/transcriptions/stream  (chunked raw wav while recording)
-                                        -> {"text": ..., "partial": ...}
+  POST /v1/audio/transcriptions/stream  (chunked raw wav while recording;
+                                        transcribed once at the end) -> {"text": ...}
   POST /v1/audio/speech            (json: {input}) -> mp3 bytes (single voice)
   GET  /health                          -> {"status": "ok"}
   GET  /firmware/manifest.json          -> {"build","version","size","sha256",
@@ -306,32 +306,14 @@ class Handler(BaseHTTPRequestHandler):
             _request_slots.release()
 
     def _stream_transcribe(self):
-        """Chunked WAV upload: whisper re-decodes the growing buffer in the
-        background while audio arrives; final text returns when the body ends.
-        The body is capped (MAX_AUDIO_BYTES, MAX_CHUNK_BYTES per chunk) and
-        must arrive within REQUEST_DEADLINE_S."""
+        """Chunked WAV upload while the user talks: the recording is already
+        here at release, and whisper transcribes it once. The body is capped
+        (MAX_AUDIO_BYTES, MAX_CHUNK_BYTES per chunk) and must arrive within
+        REQUEST_DEADLINE_S."""
         try:
             if self.headers.get("Transfer-Encoding", "").lower() != "chunked":
                 raise _Reject(400, "expected chunked body")
             buf = bytearray()
-            st = {"decoded": 0, "busy": False, "partial": ""}
-
-            def decode_worker():
-                snap = bytes(buf)
-                st["decoded"] = len(buf)
-                try:
-                    _patch_wav(snap)
-                    with io.BytesIO(bytes(snap)) as wav_io:
-                        with _whisper_lock:
-                            segments, _info = get_whisper().transcribe(
-                                wav_io, beam_size=1, vad_filter=True,
-                                language=STT_LANGUAGE)
-                            text = "".join(s.text for s in segments).strip()
-                    st["partial"] = text
-                except Exception:
-                    pass
-                finally:
-                    st["busy"] = False
 
             with self._body_deadline():
                 while True:
@@ -360,10 +342,6 @@ class Handler(BaseHTTPRequestHandler):
                         buf.extend(data)
                         remaining -= len(data)
                     self.rfile.read(2)                        # chunk CRLF
-                    if not st["busy"] and len(buf) - st["decoded"] >= 64000:
-                        st["busy"] = True
-                        threading.Thread(target=decode_worker,
-                                         daemon=True).start()
 
             _patch_wav(buf)
             with io.BytesIO(bytes(buf)) as wav_io:
@@ -371,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                     segments, _info = get_whisper().transcribe(
                         wav_io, beam_size=1, vad_filter=True, language=STT_LANGUAGE)
                     text = "".join(s.text for s in segments).strip()
-            self._send_json(200, {"text": text, "partial": st["partial"]})
+            self._send_json(200, {"text": text})
         except _Reject:
             raise
         except Exception as exc:

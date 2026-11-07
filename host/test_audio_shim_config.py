@@ -15,6 +15,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+import wave
 from http.server import ThreadingHTTPServer
 from types import SimpleNamespace
 from unittest import mock
@@ -64,10 +65,6 @@ class ShimConfig(unittest.TestCase):
                 self.shim, "get_whisper", return_value=self.whisper))
             self.tts = stack.enter_context(mock.patch.object(
                 self.shim, "_worker_speech", return_value=b"ID3-test"))
-            # Partial decode passes immutable bytes to the WAV patcher today.
-            # Header repair is unrelated to language selection; bypass it so
-            # both decode sites actually reach our model stub.
-            stack.enter_context(mock.patch.object(self.shim, "_patch_wav"))
             server = ThreadingHTTPServer(("127.0.0.1", 0), self.shim.Handler)
             self.port = server.server_address[1]
             self.assertNotEqual(self.port, 8643)
@@ -127,28 +124,46 @@ class ShimConfig(unittest.TestCase):
                 self.assertEqual(len(self.whisper.calls), 1)
                 self.assertEqual(self.whisper.calls[0]["language"], expected)
 
-    def test_language_stream_partial(self):
-        for setting, expected in ((None, "en"), ("auto", None), ("ja", "ja")):
-            with self.subTest(setting=setting), self.startup(language=setting):
-                os.environ["SHIM_STT_LANGUAGE"] = "fr"
+    def test_stream_decodes_once_after_final_chunk(self):
+        with io.BytesIO() as output:
+            with wave.open(output, "wb") as wav:
+                wav.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+                wav.writeframes(b"\0\0" * 32001)
+            audio = output.getvalue()
+        self.assertGreater(len(audio), 64000)
+        with self.startup():
+            decoded_audio = []
+            transcribe = self.whisper.transcribe
+
+            def capture(audio, **kwargs):
+                decoded_audio.append(audio.getvalue())
+                return transcribe(audio, **kwargs)
+
+            with mock.patch.object(self.whisper, "transcribe", side_effect=capture):
                 with contextlib.closing(http.client.HTTPConnection(
                         "127.0.0.1", self.port, timeout=5)) as conn:
                     conn.putrequest("POST", "/v1/audio/transcriptions/stream")
                     conn.putheader("Transfer-Encoding", "chunked")
                     conn.putheader("Content-Type", "audio/wav")
                     conn.endheaders()
-                    conn.send(b"fa00\r\n" + b"R" * 64000 + b"\r\n")
-                    partial_done = self.whisper.decoded.wait(timeout=5)
-                    partial_calls = list(self.whisper.calls)
-                    # Always finish the request, including on a failed wait.
+                    for chunk in (audio[:32000], audio[32000:]):
+                        conn.send(f"{len(chunk):x}\r\n".encode() + chunk + b"\r\n")
+                    # Leave the terminating chunk unsent so eager decoding is observable.
+                    decoded_before_final = self.whisper.decoded.wait(timeout=1)
+                    # Finish even if decoding started early, then inspect all calls.
                     conn.send(b"0\r\n\r\n")
                     response = conn.getresponse()
                     body = response.read()
-                self.assertTrue(partial_done, "partial decode never reached Whisper")
-                self.assertEqual(response.status, 200, body)
-                self.assertEqual(len(partial_calls), 1)
-                self.assertEqual(len(self.whisper.calls), 2)
-                self.assertEqual(partial_calls[0]["language"], expected)
+            self.assertEqual(response.status, 200, body)
+            with self.subTest(contract="decode timing"):
+                self.assertFalse(decoded_before_final, "Whisper ran before the final chunk")
+            with self.subTest(contract="single complete decode"):
+                self.assertEqual(len(self.whisper.calls), 1)
+                self.assertEqual(decoded_audio, [audio])
+            with self.subTest(contract="response"):
+                payload = json.loads(body)
+                self.assertNotIn("partial", payload)
+                self.assertEqual(payload, {"text": "hello there"})
 
     def test_token_rejects_audio_before_work(self):
         for path in ("/v1/audio/transcriptions", "/v1/audio/transcriptions/stream",
