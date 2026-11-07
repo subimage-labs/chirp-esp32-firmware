@@ -11,12 +11,11 @@ Flash the device once over USB. After that, the settings stay across updates. Se
 - For the T-Deck: `openocd-esp32` from Espressif. See [T-Deck over USB-JTAG](#t-deck-over-usb-jtag).
 - Releases are built with Python 3.11. If your system Python is much newer, use Python 3.10 to 3.12 for PlatformIO.
 - Internet access. The first build downloads the ESP32 toolchain and the libraries. It takes a few minutes.
-- Access to the repository and its `tdeck-venice` branch. This branch holds the T-Deck and Venice support.
 
-Clone the branch:
+Clone the repository:
 
 ```sh
-git clone --branch tdeck-venice <repo-url> chirp-esp32-firmware
+git clone <repo-url> chirp-esp32-firmware
 cd chirp-esp32-firmware
 ```
 

@@ -180,6 +180,17 @@ More problems and their solutions are in [Troubleshooting](docs/troubleshooting.
 
 ## License
 
-The four fonts (Atkinson Hyperlegible, Inter, Paper Mono and Terminus) use the
-SIL Open Font License 1.1. Each license file is next to the font data in
-[`firmware/src/fonts/`](firmware/src/fonts).
+chirp is free software under the
+[GNU General Public License, version 3 only](LICENSE) (GPL-3.0-only). You can
+use, change and share it. If you give someone a chirp firmware image or a
+device that runs it, you must also give them the matching source code under the
+same license.
+
+Parts by others keep their own licenses:
+
+- The four fonts (Atkinson Hyperlegible, Inter, Paper Mono and Terminus) use the
+  SIL Open Font License 1.1. Each license file is next to the font data in
+  [`firmware/src/fonts/`](firmware/src/fonts).
+- [`firmware/lib/ESP32-audioI2S`](firmware/lib/ESP32-audioI2S) uses the GPL-3.0.
+- [ESP Web Tools](flasher/esp-web-tools) in the browser installer uses the
+  Apache License 2.0.
