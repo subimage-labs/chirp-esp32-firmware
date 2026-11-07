@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Assemble the project web site.
 #
-#   site/build.sh OUT_DIR                      page + media + installer page, no images
-#   site/build.sh OUT_DIR RELEASE_DIR TAG      also the release images in OUT_DIR/install/
+#   site/build.sh OUT_DIR                      page + media; install/ says no release yet
+#   site/build.sh OUT_DIR RELEASE_DIR TAG      page + media + the browser installer with
+#                                              the release images in OUT_DIR/install/
 #
 # RELEASE_DIR holds the files of one release (the four flash images and
 # SHA256SUMS). Every image that flasher/manifest.json lists is checked against
@@ -10,8 +11,9 @@
 # set to TAG. The manifest keeps its parts separate: a merged image would pad
 # the NVS range and wipe the device settings.
 #
-# Without RELEASE_DIR the installer page has no images and cannot flash: use
-# that form only to look at the site.
+# Without RELEASE_DIR there are no images, so install/ gets a short page that
+# says so and points at the PlatformIO install instead of an installer that
+# cannot flash.
 set -eu
 
 [ "$#" -eq 1 ] || [ "$#" -eq 3 ] || {
@@ -28,6 +30,30 @@ mkdir -p "$out/media" "$out/install"
 tar -C "$repo/site" --exclude=build.sh -cf - . | tar -C "$out" -xf -
 cp "$repo"/docs/media/* "$out/media/"
 cp "$repo/docs/chirp-logo.png" "$out/"
+
+if [ "$#" -eq 1 ]; then
+    cat > "$out/install/index.html" <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chirp installer</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+<h1>No release yet</h1>
+<p>The browser installer opens here when the first chirp release is published.</p>
+<p>Until then, install the firmware with PlatformIO. The steps are in
+<a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/flashing.md">Installing the firmware</a>.</p>
+<p><a href="../">Back to chirp</a></p>
+</main>
+</body>
+</html>
+HTML
+    exit 0
+fi
 
 # The installer page and ESP Web Tools.
 cp "$repo/flasher/index.html" "$out/install/"

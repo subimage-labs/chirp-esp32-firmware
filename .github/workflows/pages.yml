@@ -5,7 +5,8 @@ name: pages
 # repository (Settings, Pages, Source: GitHub Actions). firmware-release.yml
 # starts this workflow with workflow_dispatch after it publishes a release,
 # because a release made with the default token does not start other workflows
-# by itself.
+# by itself. Before the first release the site deploys without the installer:
+# install/ then says that no release exists yet.
 
 on:
   release:
@@ -34,14 +35,19 @@ jobs:
           set -eu
           tag="${EVENT_TAG:-}"
           if [ -z "$tag" ]; then
-            tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+            tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
           fi
           echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          if [ -z "$tag" ]; then
+            echo "No release yet: building the site without the installer."
+            exit 0
+          fi
           rm -rf release && mkdir release
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir release \
             --pattern '*.bin' --pattern SHA256SUMS
 
       - name: Check the images against SHA256SUMS
+        if: env.RELEASE_TAG != ''
         run: |
           set -eu
           cd release
@@ -50,9 +56,16 @@ jobs:
       # Copies each manifest image after a second SHA256SUMS check, and sets the
       # manifest version to the release tag.
       - name: Build the site
-        run: site/build.sh _site release "$RELEASE_TAG"
+        run: |
+          set -eu
+          if [ -n "$RELEASE_TAG" ]; then
+            site/build.sh _site release "$RELEASE_TAG"
+          else
+            site/build.sh _site
+          fi
 
       - name: Check the installer files
+        if: env.RELEASE_TAG != ''
         run: |
           set -eu
           python3 - <<'PY'
@@ -68,7 +81,12 @@ jobs:
           for f in _site/install/*.bin; do
             host/check-secrets.sh --scan-artifact "$f"
           done
+
+      - name: Check the site files
+        run: |
+          set -eu
           test -f _site/index.html
+          test -f _site/install/index.html
           test -f _site/media/chirper-speaking.gif
           test -f _site/chirp-logo.png
 
