@@ -1,0 +1,55 @@
+name: New board
+description: Ask for support for another ESP32-S3 device, or offer to port one.
+labels: ["new board"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        chirp builds one firmware per board. A board needs a microphone, a speaker or
+        audio output, a screen, at least one key, and WiFi. See `firmware/include/board.h`
+        and the `board_*.h` files for what a port defines.
+  - type: input
+    id: board
+    attributes:
+      label: Board name and link
+      description: Name, maker and a link to the product or the pin map.
+    validations:
+      required: true
+  - type: input
+    id: chip
+    attributes:
+      label: Chip and memory
+      description: For example ESP32-S3, 16 MB flash, 8 MB PSRAM.
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Parts
+      description: Screen (size and driver), microphone, audio output (codec or amp), keys or dial, battery.
+    validations:
+      required: true
+  - type: dropdown
+    id: flashing
+    attributes:
+      label: How you flash it
+      options:
+        - esptool over the USB serial port works
+        - Only USB-JTAG works
+        - Not tried yet
+    validations:
+      required: true
+  - type: dropdown
+    id: help
+    attributes:
+      label: Can you help?
+      options:
+        - I can test a build on my board
+        - I can write the port
+        - I only ask for support
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Other notes

@@ -33,11 +33,18 @@ To run the speech server alone, do these steps:
 
 A push of a `v*` tag runs `.github/workflows/firmware-release.yml`. The workflow does these things:
 
+- It stops unless `ci.yml` passed on the tagged commit and the tag is the version that `firmware/version.py` stamps (`git describe`).
 - It builds the firmware for both boards.
-- It attaches the four **T-Embed** flash images to the GitHub Release.
+- It scans the images for private literals and key material.
+- It attaches the four **T-Embed** flash images and `SHA256SUMS` to the GitHub Release, and attests the build provenance of the images.
 - It publishes a `flasher` artifact. The artifact holds the T-Embed installer page and the images. Any HTTPS static host can serve it.
+- It starts `.github/workflows/pages.yml`.
 
-The workflow does not publish T-Deck images. Flash the T-Deck over USB-JTAG ([T-Deck over USB-JTAG](flashing.md#t-deck-over-usb-jtag)).
+`pages.yml` builds the project site with `site/build.sh`. It takes the latest release, checks each image against `SHA256SUMS`, and puts the installer page and the images in `install/`. The manifest version is the release tag. It deploys the result to GitHub Pages. Pages must be enabled for the repository (Source: GitHub Actions). To look at the site without a release, run `site/build.sh tmp/_site` and serve `tmp/_site`.
+
+Every `uses:` in the workflows is pinned to a full commit SHA, with the version in a comment.
+
+The workflows do not publish T-Deck images. Flash the T-Deck over USB-JTAG ([T-Deck over USB-JTAG](flashing.md#t-deck-over-usb-jtag)).
 
 To serve the artifact locally, unpack it and run `python -m http.server` inside it. Web Serial needs HTTPS or localhost.
 
@@ -51,6 +58,7 @@ To serve the artifact locally, unpack it and run `python -m http.server` inside 
 | `firmware/tools/logo_preview.py` | Draws the chirp! logo on all twelve theme backgrounds from `logo.h`. Needs g++ and Pillow. `--art FILE` draws a design from a text file of art rows. `--compare` shows the shipped logo and each `--art` design side by side. Other designs are in `firmware/tools/logo_options/`. The README's `docs/media/themes.png` is its default sheet. |
 | `firmware/tools/logo_web.py` | Bakes the logo into `firmware/include/logo_web.h`, a 4-bit PNG for the setup page. The result is reproducible. `--check` verifies it. `logo.h` stays the one source of the art. |
 | `flasher/` | The browser installer page and its ESP Web Tools manifest (T-Embed images only). |
+| `site/` | The project web site (static HTML and CSS). `site/build.sh` assembles it with the media, the installer and the release images. |
 | `host/pair.py` | Pairs a device with the Hermes gateway on this machine. |
 | `host/audio_shim.py` | The STT and TTS service (systemd user unit `hermes-audio-shim`). |
 | `host/local_tts.py` | Paradee TTS: a resident worker (`--serve`) or a one-shot CLI. |

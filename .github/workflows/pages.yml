@@ -1,0 +1,91 @@
+name: pages
+
+# Builds the project site (site/) with the browser installer for the latest
+# release, and deploys it to GitHub Pages. Pages must be enabled for the
+# repository (Settings, Pages, Source: GitHub Actions). firmware-release.yml
+# starts this workflow with workflow_dispatch after it publishes a release,
+# because a release made with the default token does not start other workflows
+# by itself.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Download the release images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -eu
+          tag="${EVENT_TAG:-}"
+          if [ -z "$tag" ]; then
+            tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          fi
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          rm -rf release && mkdir release
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir release \
+            --pattern '*.bin' --pattern SHA256SUMS
+
+      - name: Check the images against SHA256SUMS
+        run: |
+          set -eu
+          cd release
+          sha256sum --check SHA256SUMS
+
+      # Copies each manifest image after a second SHA256SUMS check, and sets the
+      # manifest version to the release tag.
+      - name: Build the site
+        run: site/build.sh _site release "$RELEASE_TAG"
+
+      - name: Check the installer files
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import json, os
+          with open("_site/install/manifest.json") as f:
+              manifest = json.load(f)
+          assert manifest["version"] == os.environ["RELEASE_TAG"], manifest["version"]
+          paths = [p["path"] for b in manifest["builds"] for p in b["parts"]]
+          assert len(paths) == 4, paths
+          for path in paths:
+              assert os.path.isfile("_site/install/" + path), path
+          PY
+          for f in _site/install/*.bin; do
+            host/check-secrets.sh --scan-artifact "$f"
+          done
+          test -f _site/index.html
+          test -f _site/media/chirper-speaking.gif
+          test -f _site/chirp-logo.png
+
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

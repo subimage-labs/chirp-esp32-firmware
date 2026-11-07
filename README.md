@@ -175,8 +175,10 @@ More problems and their solutions are in [Troubleshooting](docs/troubleshooting.
 - [How a question is answered](docs/how-it-works.md)
 - [Troubleshooting and known limits](docs/troubleshooting.md)
 - [Updating](docs/updating.md)
-- [Security](docs/security.md)
+- [Security notes](docs/security.md) and [how to report a problem](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
 - [Development](docs/development.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 

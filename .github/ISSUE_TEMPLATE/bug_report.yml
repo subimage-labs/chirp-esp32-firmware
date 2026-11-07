@@ -1,0 +1,74 @@
+name: Bug report
+description: Something does not work on a chirp device or on the speech server.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report.
+
+        **Never paste an API key, a WiFi password or a QR code.** Remove them from
+        every log before you post it. For a security problem, do not use this form.
+        Use a private advisory instead (see SECURITY.md).
+  - type: dropdown
+    id: board
+    attributes:
+      label: Board
+      options:
+        - T-Embed CC1101 Plus
+        - T-Deck
+        - Other (say which in the description)
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend
+      options:
+        - Venice
+        - Hermes
+        - Both
+        - Not set up yet
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Firmware version
+      description: The version in the `[OTA] running <version>` line of the serial log.
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed the firmware
+      options:
+        - Browser installer
+        - PlatformIO (pio run -t upload)
+        - OpenOCD over USB-JTAG
+        - WiFi update
+        - Other
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to repeat it
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: log
+    attributes:
+      label: Serial log excerpt
+      description: |
+        A few lines around the problem. The log never shows setting values, but check it
+        before you post. Remove any key, password or address you see.
+      render: text

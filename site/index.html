@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chirp! A pocket voice companion</title>
+<meta name="description" content="Hold the talk key and ask a question out loud. chirp speaks the answer. Open source firmware for the LilyGO T-Embed CC1101 Plus and the T-Deck.">
+<link rel="icon" href="chirp-logo.png" type="image/png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="top">
+  <nav aria-label="Main">
+    <a class="brand" href="./"><img src="chirp-logo.png" alt="chirp!" width="72" height="44"></a>
+    <ul>
+      <li><a href="#what">What you can do</a></li>
+      <li><a href="#routes">Two routes</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware">GitHub</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <h1>A pocket voice companion</h1>
+  <p class="lead">Hold the talk key and ask a question out loud. chirp sends the
+  question to an AI and speaks the answer. A small pixel character, the
+  Chirper, shows what happens: it listens, it thinks, it talks. The words show
+  on the screen too.</p>
+  <p class="actions">
+    <a class="button primary" href="#install">Install chirp</a>
+    <a class="button" href="https://github.com/subimage-labs/chirp-esp32-firmware#readme">Read the README</a>
+  </p>
+</section>
+
+<section class="steps" aria-label="What the Chirper does">
+  <figure>
+    <img src="media/chirper-listening.gif" width="192" height="192" alt="The Chirper listens">
+    <figcaption>You talk</figcaption>
+  </figure>
+  <figure>
+    <img src="media/chirper-thinking.gif" width="192" height="192" alt="The Chirper thinks">
+    <figcaption>It thinks</figcaption>
+  </figure>
+  <figure>
+    <img src="media/chirper-pleased.gif" width="192" height="192" alt="The Chirper hops with sparkles">
+    <figcaption>The answer starts</figcaption>
+  </figure>
+  <figure>
+    <img src="media/chirper-speaking.gif" width="192" height="192" alt="The Chirper speaks">
+    <figcaption>It speaks</figcaption>
+  </figure>
+</section>
+
+<section>
+  <p>chirp runs on two small handheld devices from LilyGO: the
+  <a href="https://lilygo.cc/products/t-embed-cc1101-plus">T-Embed CC1101 Plus</a>
+  (a dial and two keys) and the
+  <a href="https://lilygo.cc/products/t-deck">T-Deck</a>
+  (a keyboard and a trackball). It is free software under the GPL-3.0.</p>
+</section>
+
+<section id="what">
+  <h2>What you can do with it</h2>
+  <ul class="cards">
+    <li><strong>Ask out loud.</strong> A fact, a recipe, a word you cannot spell. The
+    answer comes back as speech and as text.</li>
+    <li><strong>Type.</strong> On the T-Deck, type a question and push
+    <strong>Enter</strong>.</li>
+    <li><strong>Go back to a chat.</strong> With Hermes, the <strong>Chats</strong> tab
+    resumes recent conversations.</li>
+    <li><strong>Make it yours.</strong> Pick a Chirper, a theme, a font and a text
+    size. With Venice, pick a voice.</li>
+    <li><strong>Set it up from a phone.</strong> You do not need an app. chirp keeps
+    up to 5 WiFi networks and joins the strongest one in range.</li>
+  </ul>
+</section>
+
+<section id="listening">
+  <h2>It listens only when you say so</h2>
+  <p>chirp is push-to-talk. The microphone is open while you hold the talk key.
+  When you let go, the question is sent.</p>
+  <p>Hands-free mode is off by default. It starts only when you turn it on with a
+  quick double-tap of the talk key. Then chirp listens after each answer. It
+  stops after 3 minutes of quiet, or when you double-tap again.</p>
+</section>
+
+<section id="routes">
+  <h2>Two routes: cloud or at home</h2>
+  <p>During setup you pick where the answers come from.</p>
+  <div class="routes">
+    <article>
+      <h3>Cloud: Venice</h3>
+      <p class="tag">Easy. You need the device, a phone and a Venice API key.</p>
+      <ul>
+        <li>Chat, speech to text and the voice all come from
+        <a href="https://venice.ai/">Venice</a>.</li>
+        <li>Your voice and your text go to Venice over https.</li>
+        <li>Venice charges credit for each answer.</li>
+        <li>The personality is <em>Chirper</em>, a friendly companion for
+        children, built into the firmware.</li>
+      </ul>
+      <p><a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/setup-venice.md">Venice setup</a></p>
+    </article>
+    <article>
+      <h3>At home: Hermes</h3>
+      <p class="tag">Private. You need a Linux computer on the same WiFi.</p>
+      <ul>
+        <li>Your computer runs your own
+        <a href="https://hermes-agent.nousresearch.com/docs/getting-started/installation">Hermes Agent</a>
+        and the chirp speech server.</li>
+        <li>Your voice audio stays on your network. Speech to text and the voice
+        run on your computer.</li>
+        <li>The answer comes from the Hermes model provider that you choose. The
+        text of your question goes to that provider, unless you run the model
+        yourself.</li>
+        <li>The device talks to your computer over plain HTTP on your own
+        network. See the
+        <a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/security.md">security notes</a>.</li>
+        <li>You pay your model provider. Speech is free.</li>
+      </ul>
+      <p><a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/setup-hermes.md">Hermes setup</a></p>
+    </article>
+  </div>
+</section>
+
+<section>
+  <h2>Meet the Chirpers</h2>
+  <p>Every agent has its own Chirper. chirp draws it from the name of the agent,
+  so a different name gives a different character.</p>
+  <p class="center"><img class="pix" src="media/chirpers.png" width="512" height="512" alt="64 different Chirpers"></p>
+  <h2>Pick a theme</h2>
+  <p>Six colour themes, each in dark and light. Four fonts in three sizes.</p>
+  <p class="center"><img src="media/themes.png" width="592" height="360" alt="The chirp! logo on the 12 themes"></p>
+</section>
+
+<section id="install">
+  <h2>Install</h2>
+  <div class="routes">
+    <article>
+      <h3>T-Embed CC1101 Plus</h3>
+      <p>Install from your browser. No build tools. You need Chrome or Edge on a
+      desktop computer and a USB-C cable that carries data.</p>
+      <p class="actions"><a class="button primary" href="install/">Open the browser installer</a></p>
+      <p class="note">Do not tick <strong>Erase device</strong>. An erase removes the
+      saved settings.</p>
+    </article>
+    <article>
+      <h3>T-Deck</h3>
+      <p>The browser installer does not work on the T-Deck. Its serial loader
+      does not answer. Flash it over USB-JTAG with OpenOCD.</p>
+      <p class="actions"><a class="button" href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/flashing.md#t-deck-over-usb-jtag">T-Deck over USB-JTAG</a></p>
+    </article>
+  </div>
+  <p>After the install, the device starts its own WiFi network. Join it with your
+  phone and follow the setup page. See
+  <a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/first-setup.md">First setup</a>.</p>
+</section>
+
+<section id="docs">
+  <h2>Read more</h2>
+  <ul class="links">
+    <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware#readme">README and quick start</a></li>
+    <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/flashing.md">Installing the firmware</a></li>
+    <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/using.md">Using chirp</a></li>
+    <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/how-it-works.md">How a question is answered</a></li>
+    <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/troubleshooting.md">Troubleshooting</a></li>
+    <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/docs/security.md">Security notes</a></li>
+    <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/CONTRIBUTING.md">Contributing</a></li>
+    <li><a href="https://github.com/subimage-labs/chirp-esp32-firmware/releases">Releases</a></li>
+  </ul>
+</section>
+
+</main>
+
+<footer>
+  <p>chirp is free software under the
+  <a href="https://github.com/subimage-labs/chirp-esp32-firmware/blob/main/LICENSE">GNU General Public License, version 3 only</a>.
+  The source code is on
+  <a href="https://github.com/subimage-labs/chirp-esp32-firmware">GitHub</a>.</p>
+</footer>
+</body>
+</html>

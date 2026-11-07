@@ -23,19 +23,26 @@ For the Hermes route, clone the repository on the Hermes machine.
 
 ## T-Embed from the browser (no build tools)
 
-1. Download the `flasher` artifact of the latest **firmware-release** run (GitHub, then Actions).
+1. In Chrome or Edge on a desktop computer, open <https://subimage-labs.github.io/chirp-esp32-firmware/install/>.
+2. Plug the device in.
+3. Click **Install**.
+4. Pick the port of the device. If no port shows, hold **BOOT** and plug the cable in again.
+5. Do not tick **Erase device**. An erase removes the saved settings. A new device does not need an erase.
+
+The page installs the images of the latest release. Its builds do not update over WiFi. See [Updating](updating.md).
+
+To install a build that is not released yet, use the installer from a CI run instead:
+
+1. Download the `flasher` artifact of the **firmware-release** run (GitHub, then Actions).
 2. Unpack the artifact and serve it on your desktop computer:
 
    ```sh
    unzip flasher.zip -d flasher && cd flasher && python3 -m http.server   # open http://localhost:8000
    ```
 
-3. In Chrome or Edge, plug the device in.
-4. Click **Install**.
-5. Pick the port of the device. If no port shows, hold **BOOT** and plug the cable in again.
-6. Do not tick **Erase device**. An erase removes the saved settings. A new device does not need an erase.
+3. Follow the steps above on that page.
 
-The installer has T-Embed images only. Its builds do not update over WiFi. See [Updating](updating.md).
+The installer has T-Embed images only.
 
 ## T-Embed with PlatformIO
 
