@@ -14,13 +14,20 @@ Endpoints:
   GET  /firmware/chirp.bin              -> app image (both 404 until
                                         host/publish-firmware.py has run)
 
-STT: faster-whisper, model "base" (SHIM_WHISPER_MODEL), int8 on CPU.
+STT: faster-whisper, model "base" (SHIM_WHISPER_MODEL), int8 on CPU. Speech
+language SHIM_STT_LANGUAGE: a whisper language code (default "en"), or "auto"
+to let whisper detect it.
 TTS: resident Paradee worker (host/local_tts.py --serve) on 127.0.0.1:8644,
 spawned on demand — 8M distillation of Kokoro-82M, single voice af_heart.
 Runs from host/.venv-tts (see host/setup.sh). No network, no API keys.
+
+Access: with SHIM_TOKEN set, every /v1/ and /firmware/ request needs
+"Authorization: Bearer <SHIM_TOKEN>" (else 401). /health stays open. Unset,
+anyone who reaches the port can use it.
 """
 
 import contextlib
+import hmac
 import io
 import json
 import os
@@ -41,6 +48,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HOST = "0.0.0.0"
 PORT = int(os.environ.get("SHIM_PORT", "8643"))
 WHISPER_MODEL = os.environ.get("SHIM_WHISPER_MODEL", "base")
+_lang = os.environ.get("SHIM_STT_LANGUAGE", "").strip() or "en"
+STT_LANGUAGE = None if _lang.lower() == "auto" else _lang   # None = whisper detects
+SHIM_TOKEN = os.environ.get("SHIM_TOKEN", "")
+PROTECTED_PREFIXES = ("/v1/", "/firmware/")
 
 # Device firmware for boot-time OTA, published by host/publish-firmware.py.
 # Same directory via its --dir/SHIM_FIRMWARE_DIR default.
@@ -233,7 +244,18 @@ class Handler(BaseHTTPRequestHandler):
                 remaining -= len(data)
         return b"".join(parts)
 
+    def _authorized(self):
+        """True unless SHIM_TOKEN is set and this protected path lacks it."""
+        if not SHIM_TOKEN or not self.path.startswith(PROTECTED_PREFIXES):
+            return True
+        scheme, _, given = self.headers.get("Authorization", "").partition(" ")
+        return scheme.lower() == "bearer" and hmac.compare_digest(
+            given.strip().encode(), SHIM_TOKEN.encode())
+
     def do_GET(self):
+        if not self._authorized():
+            self._send_json(401, {"error": "unauthorized"})
+            return
         if self.path == "/health":
             self._send_json(200, {"status": "ok", "stt": "faster-whisper/" + WHISPER_MODEL,
                                   "tts": "paradee-local"})
@@ -262,6 +284,9 @@ class Handler(BaseHTTPRequestHandler):
             pass                                   # device rebooted mid-download
 
     def do_POST(self):
+        if not self._authorized():
+            self._reject(401, "unauthorized")         # body left unread
+            return
         route = {
             "/v1/audio/transcriptions": self._transcribe,
             "/v1/audio/transcriptions/stream": self._stream_transcribe,
@@ -300,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
                         with _whisper_lock:
                             segments, _info = get_whisper().transcribe(
                                 wav_io, beam_size=1, vad_filter=True,
-                                language="en")
+                                language=STT_LANGUAGE)
                             text = "".join(s.text for s in segments).strip()
                     st["partial"] = text
                 except Exception:
@@ -344,7 +369,7 @@ class Handler(BaseHTTPRequestHandler):
             with io.BytesIO(bytes(buf)) as wav_io:
                 with _whisper_lock:
                     segments, _info = get_whisper().transcribe(
-                        wav_io, beam_size=1, vad_filter=True, language="en")
+                        wav_io, beam_size=1, vad_filter=True, language=STT_LANGUAGE)
                     text = "".join(s.text for s in segments).strip()
             self._send_json(200, {"text": text, "partial": st["partial"]})
         except _Reject:
@@ -381,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
                 fh.write(audio)
             with _whisper_lock:
                 segments, info = get_whisper().transcribe(path, beam_size=1, vad_filter=True,
-                                                          language="en")
+                                                          language=STT_LANGUAGE)
                 text = "".join(seg.text for seg in segments).strip()
             self._send_json(200, {"text": text, "language": info.language})
         except Exception as exc:

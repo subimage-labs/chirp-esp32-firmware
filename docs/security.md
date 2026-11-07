@@ -32,3 +32,15 @@ The device sends your voice and text to Venice over HTTPS.
 Limit access to the gateway port (8642) with a firewall rule on the Hermes machine. Allow only the address of the device. TLS with a certificate pinned on the device would close this gap. This is not built yet.
 
 Pairing over USB (`host/pair.py`) sends no key over WiFi or to a screen. The QR code from `--no-usb` carries the API key of the profile. Do not share the code.
+
+## What runs on the Hermes machine
+
+| Process | Port | Who can connect | Notes |
+|---|---|---|---|
+| Hermes gateway (yours) | 8642 | Your LAN | Each device request carries the API key of its agent. |
+| chirp speech server (`host/audio_shim.py`) | 8643, all interfaces | Your LAN | Speech to text, text to speech, and published firmware. |
+| Voice worker (`host/local_tts.py`) | 8644, localhost only | This machine | Started by the speech server. |
+
+**The speech server is open by default.** Anyone who can reach port 8643 can use it to transcribe audio, make speech and download your published firmware. Set `SHIM_TOKEN` in the environment of the service to require `Authorization: Bearer <token>` on every `/v1/` and `/firmware/` request. `/health` stays open. Firmware that sends this token is not built yet, so a token blocks your devices too. Until then, limit port 8643 with a firewall rule to the addresses of your devices.
+
+The speech server writes a recording to a temporary file only while it transcribes, and deletes it afterwards. It keeps no audio and no text. It sends nothing off the machine: whisper and the voice run locally.

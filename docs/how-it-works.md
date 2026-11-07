@@ -12,9 +12,11 @@ flowchart LR
     D -->|"MP3 per chunk"| E["PSRAM, played in place<br/>ESP32-audioI2S to speaker"]
 ```
 
-### Speech recognition starts before you release the talk key
+### The recording uploads while you talk
 
-The device streams the recording to the speech server while you talk. whisper decodes the growing buffer again in the background. The final transcript is ready about one second after you release the key. If the stream drops, the device uploads the recording in one piece.
+The device streams the recording to the speech server while you talk, so nothing is left to upload when you release the key. whisper then transcribes the whole recording once. The final transcript is ready about one second after you release the key. If the stream drops, the device uploads the recording in one piece.
+
+The speech server recognises English by default. To change this, set `SHIM_STT_LANGUAGE` to a whisper language code (for example `de`), or to `auto` to let whisper detect the language.
 
 ### Speech starts at the first sentence
 

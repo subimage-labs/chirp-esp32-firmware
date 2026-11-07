@@ -7,3 +7,4 @@ host/test_check_secrets.py	credential assignment
 host/test_check_secrets.py	private IPv4
 host/test_check_secrets.py	private key block
 host/test_avatar_look.py	credential assignment
+host/test_audio_shim_config.py	credential assignment
